@@ -9,38 +9,155 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as V02RouteImport } from './routes/v02'
+import { Route as SemanaRouteImport } from './routes/semana'
+import { Route as JornadaRouteImport } from './routes/jornada'
+import { Route as FocoRouteImport } from './routes/foco'
+import { Route as ArquivoRouteImport } from './routes/arquivo'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProjetoIdRouteImport } from './routes/projeto.$id'
 
+const V02Route = V02RouteImport.update({
+  id: '/v02',
+  path: '/v02',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SemanaRoute = SemanaRouteImport.update({
+  id: '/semana',
+  path: '/semana',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JornadaRoute = JornadaRouteImport.update({
+  id: '/jornada',
+  path: '/jornada',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FocoRoute = FocoRouteImport.update({
+  id: '/foco',
+  path: '/foco',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArquivoRoute = ArquivoRouteImport.update({
+  id: '/arquivo',
+  path: '/arquivo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjetoIdRoute = ProjetoIdRouteImport.update({
+  id: '/projeto/$id',
+  path: '/projeto/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/arquivo': typeof ArquivoRoute
+  '/foco': typeof FocoRoute
+  '/jornada': typeof JornadaRoute
+  '/semana': typeof SemanaRoute
+  '/v02': typeof V02Route
+  '/projeto/$id': typeof ProjetoIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/arquivo': typeof ArquivoRoute
+  '/foco': typeof FocoRoute
+  '/jornada': typeof JornadaRoute
+  '/semana': typeof SemanaRoute
+  '/v02': typeof V02Route
+  '/projeto/$id': typeof ProjetoIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/arquivo': typeof ArquivoRoute
+  '/foco': typeof FocoRoute
+  '/jornada': typeof JornadaRoute
+  '/semana': typeof SemanaRoute
+  '/v02': typeof V02Route
+  '/projeto/$id': typeof ProjetoIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/arquivo'
+    | '/foco'
+    | '/jornada'
+    | '/semana'
+    | '/v02'
+    | '/projeto/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/arquivo'
+    | '/foco'
+    | '/jornada'
+    | '/semana'
+    | '/v02'
+    | '/projeto/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/arquivo'
+    | '/foco'
+    | '/jornada'
+    | '/semana'
+    | '/v02'
+    | '/projeto/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ArquivoRoute: typeof ArquivoRoute
+  FocoRoute: typeof FocoRoute
+  JornadaRoute: typeof JornadaRoute
+  SemanaRoute: typeof SemanaRoute
+  V02Route: typeof V02Route
+  ProjetoIdRoute: typeof ProjetoIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/v02': {
+      id: '/v02'
+      path: '/v02'
+      fullPath: '/v02'
+      preLoaderRoute: typeof V02RouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/semana': {
+      id: '/semana'
+      path: '/semana'
+      fullPath: '/semana'
+      preLoaderRoute: typeof SemanaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jornada': {
+      id: '/jornada'
+      path: '/jornada'
+      fullPath: '/jornada'
+      preLoaderRoute: typeof JornadaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/foco': {
+      id: '/foco'
+      path: '/foco'
+      fullPath: '/foco'
+      preLoaderRoute: typeof FocoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/arquivo': {
+      id: '/arquivo'
+      path: '/arquivo'
+      fullPath: '/arquivo'
+      preLoaderRoute: typeof ArquivoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +165,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projeto/$id': {
+      id: '/projeto/$id'
+      path: '/projeto/$id'
+      fullPath: '/projeto/$id'
+      preLoaderRoute: typeof ProjetoIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ArquivoRoute: ArquivoRoute,
+  FocoRoute: FocoRoute,
+  JornadaRoute: JornadaRoute,
+  SemanaRoute: SemanaRoute,
+  V02Route: V02Route,
+  ProjetoIdRoute: ProjetoIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
