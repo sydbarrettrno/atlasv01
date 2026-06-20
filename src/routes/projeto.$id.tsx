@@ -1,6 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Shell } from "@/components/nucleo/Shell";
-import { projects, riskLabel, statusLabel } from "@/lib/nucleo-data";
+import { projects, riskLabel, statusLabel, type Project } from "@/lib/nucleo-data";
 import {
   ArrowLeft, Target, ArrowRight, AlertTriangle, CheckCircle2,
   Flag, MapPin, Hourglass, ShieldCheck, Layers, Ban,
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/projeto/$id")({
 });
 
 function ProjectDetail() {
-  const { project: p } = Route.useLoaderData();
+  const { project: p } = Route.useLoaderData() as { project: Project };
   const c = `var(--${p.color})`;
   const v01 = p.scope.filter((s) => s.bucket === "v01");
   const v02 = p.scope.filter((s) => s.bucket === "v02");
