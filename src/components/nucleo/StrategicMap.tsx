@@ -391,6 +391,5 @@ function Panel({
   );
 }
 
-// Unused helpers kept to preserve module shape
 export { Shell };
-function _unused() { return [Users, FileText, Building2, Settings2]; }
+
