@@ -2,6 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   Archive,
   ArrowRight,
+  ArrowDown,
+  ArrowUp,
   CheckCircle2,
   Circle,
   GripVertical,
@@ -37,6 +39,11 @@ type EditingTask = {
   priority: TaskPriority;
   scopeBucket: ScopeItem["bucket"];
   status: TaskStatus;
+};
+
+type Notice = {
+  tone: "emerald" | "amber" | "rose";
+  text: string;
 };
 
 const priorityLabel: Record<TaskPriority, string> = {
@@ -78,6 +85,7 @@ function FlowPage() {
   });
   const [editing, setEditing] = useState<EditingTask | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   const projectById = useMemo(() => new Map(state.projects.map((project) => [project.id, project])), [state.projects]);
   const activeTasks = state.tasks
@@ -89,10 +97,21 @@ function FlowPage() {
   const blockedTasks = activeTasks.filter((task) => task.status === "blocked");
   const readyTasks = activeTasks.filter((task) => task.status === "ready" || task.status === "backlog");
   const focusTask = activeFocusSession?.taskId ? state.tasks.find((task) => task.id === activeFocusSession.taskId) : undefined;
+  const canCreateTask = Boolean(draft.projectId && draft.title.trim());
+
+  function showNotice(nextNotice: Notice) {
+    setNotice(nextNotice);
+    window.setTimeout(() => {
+      setNotice((current) => (current?.text === nextNotice.text ? null : current));
+    }, 3200);
+  }
 
   function createTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!draft.projectId) return;
+    if (!canCreateTask) {
+      showNotice({ tone: "amber", text: "Defina uma próxima ação antes de criar a tarefa." });
+      return;
+    }
 
     actions.createTask({
       projectId: draft.projectId,
@@ -103,20 +122,29 @@ function FlowPage() {
       status: "ready",
     });
     setDraft((current) => ({ ...current, title: "", description: "" }));
+    showNotice({ tone: "emerald", text: "Tarefa criada e adicionada à fila." });
   }
 
   function saveTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editing) return;
+    if (!editing.title.trim()) {
+      showNotice({ tone: "amber", text: "A tarefa precisa manter um título." });
+      return;
+    }
 
+    const originalTask = state.tasks.find((task) => task.id === editing.id);
     actions.updateTask(editing.id, {
       title: editing.title,
       description: editing.description,
       priority: editing.priority,
       scopeBucket: editing.scopeBucket,
-      status: editing.status,
     });
+    if (originalTask && originalTask.status !== editing.status) {
+      actions.setTaskStatus(editing.id, editing.status);
+    }
     setEditing(null);
+    showNotice({ tone: "emerald", text: "Tarefa atualizada." });
   }
 
   function startFocus(taskId: string) {
@@ -143,6 +171,28 @@ function FlowPage() {
     nextIds.splice(to, 0, moved);
     actions.reorderTasks(nextIds);
     setDraggedId(null);
+    showNotice({ tone: "emerald", text: "Fila reordenada." });
+  }
+
+  function moveTask(taskId: string, direction: "up" | "down") {
+    const ids = queueTasks.map((task) => task.id);
+    const index = ids.indexOf(taskId);
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (index === -1 || target < 0 || target >= ids.length) return;
+
+    const nextIds = [...ids];
+    const [moved] = nextIds.splice(index, 1);
+    nextIds.splice(target, 0, moved);
+    actions.reorderTasks(nextIds);
+    showNotice({ tone: "emerald", text: "Fila reordenada." });
+  }
+
+  function archiveTask(task: NucleoTask) {
+    const confirmed = window.confirm(`Arquivar a tarefa "${task.title}"? Ela poderá ser restaurada no Arquivo.`);
+    if (!confirmed) return;
+
+    actions.archiveTask(task.id);
+    showNotice({ tone: "amber", text: "Tarefa arquivada." });
   }
 
   return (
@@ -209,11 +259,12 @@ function FlowPage() {
                 <option value="fora">Fora</option>
               </select>
             </Field>
-            <button type="submit" className="atlas-cta inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-xs font-bold uppercase tracking-[0.14em]">
+            <button type="submit" disabled={!canCreateTask} className="atlas-cta inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-xs font-bold uppercase tracking-[0.14em] disabled:cursor-not-allowed disabled:opacity-50">
               <Plus className="h-4 w-4" />
               Criar
             </button>
           </form>
+          {notice && <NoticeBanner tone={notice.tone}>{notice.text}</NoticeBanner>}
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -254,7 +305,11 @@ function FlowPage() {
                   onEditingChange={setEditing}
                   onStartFocus={() => startFocus(task.id)}
                   onSetStatus={(status) => actions.setTaskStatus(task.id, status)}
-                  onArchive={() => actions.archiveTask(task.id)}
+                  onArchive={() => archiveTask(task)}
+                  onMoveUp={() => moveTask(task.id, "up")}
+                  onMoveDown={() => moveTask(task.id, "down")}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < queueTasks.length - 1}
                   focusDisabled={Boolean(activeFocusSession)}
                 />
               ))}
@@ -287,6 +342,10 @@ function TaskCard({
   onStartFocus,
   onSetStatus,
   onArchive,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
 }: {
   task: NucleoTask;
   index: number;
@@ -303,6 +362,10 @@ function TaskCard({
   onStartFocus: () => void;
   onSetStatus: (status: TaskStatus) => void;
   onArchive: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
 }) {
   const isEditing = editing?.id === task.id;
   const tone = task.priority === "high" ? "rose" : task.priority === "medium" ? "amber" : "cyan";
@@ -353,6 +416,10 @@ function TaskCard({
             <span className="grid h-10 w-10 cursor-grab place-items-center rounded-xl border border-border bg-background/30 text-muted-foreground active:cursor-grabbing">
               <GripVertical className="h-4 w-4" />
             </span>
+            <div className="grid gap-1">
+              <IconButton label="Subir tarefa" tone="muted" onClick={onMoveUp} disabled={!canMoveUp}><ArrowUp className="h-4 w-4" /></IconButton>
+              <IconButton label="Descer tarefa" tone="muted" onClick={onMoveDown} disabled={!canMoveDown}><ArrowDown className="h-4 w-4" /></IconButton>
+            </div>
           </div>
 
           <div className="min-w-0">
@@ -457,6 +524,16 @@ function Metric({ label, value, tone }: { label: string; value: number; tone: "c
   );
 }
 
+function NoticeBanner({ tone, children }: { tone: Notice["tone"]; children: ReactNode }) {
+  const color = `var(--${tone})`;
+
+  return (
+    <div className="mt-3 rounded-xl border bg-background/25 px-3 py-2 text-sm font-semibold" style={{ color, borderColor: `color-mix(in oklab, ${color} 34%, var(--border))` }}>
+      {children}
+    </div>
+  );
+}
+
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="grid gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
@@ -471,12 +548,14 @@ function IconButton({
   tone,
   type = "button",
   onClick,
+  disabled = false,
   children,
 }: {
   label: string;
   tone: "cyan" | "emerald" | "amber" | "rose" | "muted";
   type?: "button" | "submit";
   onClick?: () => void;
+  disabled?: boolean;
   children: ReactNode;
 }) {
   const color = tone === "muted" ? "var(--muted-foreground)" : `var(--${tone})`;
@@ -484,9 +563,10 @@ function IconButton({
     <button
       type={type}
       onClick={onClick}
+      disabled={disabled}
       aria-label={label}
       title={label}
-      className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-background/25 transition hover:-translate-y-0.5"
+      className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-background/25 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
       style={{ color, borderColor: `color-mix(in oklab, ${color} 32%, var(--border))` }}
     >
       {children}

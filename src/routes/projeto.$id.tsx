@@ -44,6 +44,7 @@ type ProjectDraft = {
 };
 
 type ScopeBucketKey = ScopeItem["bucket"];
+type Notice = { tone: "emerald" | "amber" | "rose"; text: string };
 
 const emptyProjectDraft: ProjectDraft = {
   name: "",
@@ -93,6 +94,7 @@ function ProjectDetail() {
   const [blockerTitle, setBlockerTitle] = useState("");
   const [blockerDetail, setBlockerDetail] = useState("");
   const [blockerOwner, setBlockerOwner] = useState("");
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   const p = state.projects.find((project) => project.id === projectId) ?? projects.find((project) => project.id === projectId);
   const blockers = state.blockers.filter((blocker) => blocker.projectId === projectId && blocker.status !== "archived");
@@ -129,14 +131,28 @@ function ProjectDetail() {
   const v01 = p.scope.filter((scope) => scope.bucket === "v01");
   const v02 = p.scope.filter((scope) => scope.bucket === "v02");
   const fora = p.scope.filter((scope) => scope.bucket === "fora");
+  const canSaveProject = Boolean(projectDraft.name.trim());
+
+  function showNotice(nextNotice: Notice) {
+    setNotice(nextNotice);
+    window.setTimeout(() => {
+      setNotice((current) => (current?.text === nextNotice.text ? null : current));
+    }, 3200);
+  }
 
   function saveProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canSaveProject) {
+      showNotice({ tone: "amber", text: "O projeto precisa manter um nome." });
+      return;
+    }
+
     actions.updateProject(p.id, projectDraft);
+    showNotice({ tone: "emerald", text: "Projeto atualizado." });
   }
 
   function archiveProject() {
-    const confirmed = window.confirm(`Arquivar o projeto "${p.name}"? Ele podera ser restaurado no Arquivo.`);
+    const confirmed = window.confirm(`Arquivar o projeto "${p.name}"? Ele poderá ser restaurado no Arquivo.`);
     if (!confirmed) return;
 
     actions.archiveProject(p.id);
@@ -145,40 +161,73 @@ function ProjectDetail() {
 
   function addCheckpoint(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!checkpointText.trim()) {
+      showNotice({ tone: "amber", text: "Digite o checkpoint antes de adicionar." });
+      return;
+    }
+
     actions.createProjectCheckpoint(p.id, checkpointText);
     setCheckpointText("");
+    showNotice({ tone: "emerald", text: "Checkpoint criado." });
   }
 
   function saveCheckpoint(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editingCheckpoint) return;
+    if (!editingCheckpoint.label.trim()) {
+      showNotice({ tone: "amber", text: "O checkpoint precisa manter um nome." });
+      return;
+    }
 
     actions.updateProjectCheckpoint(p.id, editingCheckpoint.id, editingCheckpoint.label);
     setEditingCheckpoint(null);
+    showNotice({ tone: "emerald", text: "Checkpoint atualizado." });
   }
 
   function addScopeItem(bucket: ScopeBucketKey, event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!scopeInputs[bucket].trim()) {
+      showNotice({ tone: "amber", text: "Digite o item de escopo antes de adicionar." });
+      return;
+    }
+
     actions.createScopeItem(p.id, { bucket, text: scopeInputs[bucket] });
     setScopeInputs((current) => ({ ...current, [bucket]: "" }));
+    showNotice({ tone: "emerald", text: "Item de escopo criado." });
   }
 
   function saveScopeItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editingScope) return;
+    if (!editingScope.text.trim()) {
+      showNotice({ tone: "amber", text: "O item de escopo precisa manter uma descrição." });
+      return;
+    }
 
     actions.updateScopeItem(p.id, editingScope.id, editingScope.text);
     setEditingScope(null);
+    showNotice({ tone: "emerald", text: "Item de escopo atualizado." });
   }
 
   function addEvidence(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!evidenceText.trim()) {
+      showNotice({ tone: "amber", text: "Digite uma evidência antes de registrar." });
+      return;
+    }
+
     actions.addProjectEvidence(p.id, evidenceText);
     setEvidenceText("");
+    showNotice({ tone: "emerald", text: "Evidência registrada." });
   }
 
   function addBlocker(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!blockerTitle.trim()) {
+      showNotice({ tone: "amber", text: "Digite o bloqueio antes de registrar." });
+      return;
+    }
+
     actions.createProjectBlocker(p.id, {
       title: blockerTitle,
       detail: blockerDetail,
@@ -187,6 +236,39 @@ function ProjectDetail() {
     setBlockerTitle("");
     setBlockerDetail("");
     setBlockerOwner("");
+    showNotice({ tone: "emerald", text: "Bloqueio registrado." });
+  }
+
+  function archiveCheckpoint(checkpointId: string, label: string) {
+    const confirmed = window.confirm(`Arquivar o checkpoint "${label}"?`);
+    if (!confirmed) return;
+
+    actions.archiveProjectCheckpoint(p.id, checkpointId);
+    showNotice({ tone: "amber", text: "Checkpoint arquivado." });
+  }
+
+  function archiveScopeItem(itemId: string, text: string) {
+    const confirmed = window.confirm(`Arquivar o item "${text}"?`);
+    if (!confirmed) return;
+
+    actions.archiveScopeItem(p.id, itemId);
+    showNotice({ tone: "amber", text: "Item de escopo arquivado." });
+  }
+
+  function archiveEvidence(evidenceId: string, label: string) {
+    const confirmed = window.confirm(`Arquivar a evidência "${label}"?`);
+    if (!confirmed) return;
+
+    actions.archiveProjectEvidence(p.id, evidenceId);
+    showNotice({ tone: "amber", text: "Evidência arquivada." });
+  }
+
+  function archiveBlocker(blockerId: string, title: string) {
+    const confirmed = window.confirm(`Arquivar o bloqueio "${title}"?`);
+    if (!confirmed) return;
+
+    actions.archiveProjectBlocker(blockerId);
+    showNotice({ tone: "amber", text: "Bloqueio arquivado." });
   }
 
   return (
@@ -285,12 +367,13 @@ function ProjectDetail() {
               </Field>
             </div>
             <div className="lg:col-span-2">
-              <button type="submit" className="atlas-cta inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold uppercase tracking-[0.14em]">
+              <button type="submit" disabled={!canSaveProject} className="atlas-cta inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold uppercase tracking-[0.14em] disabled:cursor-not-allowed disabled:opacity-50">
                 <Save className="h-4 w-4" />
                 Salvar comando
               </button>
             </div>
           </form>
+          {notice && <NoticeBanner tone={notice.tone}>{notice.text}</NoticeBanner>}
         </section>
 
         <section className="rounded-2xl border border-border bg-surface/60 p-5">
@@ -345,7 +428,7 @@ function ProjectDetail() {
                     <IconButton label="Editar checkpoint" tone="cyan" onClick={() => setEditingCheckpoint({ id: checkpoint.id, label: checkpoint.label })}>
                       <Pencil className="h-4 w-4" />
                     </IconButton>
-                    <IconButton label="Arquivar checkpoint" tone="rose" onClick={() => actions.archiveProjectCheckpoint(p.id, checkpoint.id)}>
+                    <IconButton label="Arquivar checkpoint" tone="rose" onClick={() => archiveCheckpoint(checkpoint.id, checkpoint.label)}>
                       <Archive className="h-4 w-4" />
                     </IconButton>
                   </div>
@@ -369,7 +452,7 @@ function ProjectDetail() {
             onEdit={setEditingScope}
             onSave={saveScopeItem}
             onMove={(itemId, bucket) => actions.moveScopeItem(p.id, itemId, bucket)}
-            onArchive={(itemId) => actions.archiveScopeItem(p.id, itemId)}
+            onArchive={(itemId) => archiveScopeItem(itemId, p.scope.find((item) => item.id === itemId)?.text ?? "item")}
           />
           <ScopeBucket
             title="V02 - Portal"
@@ -384,7 +467,7 @@ function ProjectDetail() {
             onEdit={setEditingScope}
             onSave={saveScopeItem}
             onMove={(itemId, bucket) => actions.moveScopeItem(p.id, itemId, bucket)}
-            onArchive={(itemId) => actions.archiveScopeItem(p.id, itemId)}
+            onArchive={(itemId) => archiveScopeItem(itemId, p.scope.find((item) => item.id === itemId)?.text ?? "item")}
           />
           <ScopeBucket
             title="Fora do Escopo"
@@ -399,7 +482,7 @@ function ProjectDetail() {
             onEdit={setEditingScope}
             onSave={saveScopeItem}
             onMove={(itemId, bucket) => actions.moveScopeItem(p.id, itemId, bucket)}
-            onArchive={(itemId) => actions.archiveScopeItem(p.id, itemId)}
+            onArchive={(itemId) => archiveScopeItem(itemId, p.scope.find((item) => item.id === itemId)?.text ?? "item")}
           />
         </div>
 
@@ -414,14 +497,14 @@ function ProjectDetail() {
             onOwnerChange={setBlockerOwner}
             onSubmit={addBlocker}
             onResolve={(blockerId) => actions.resolveProjectBlocker(blockerId)}
-            onArchive={(blockerId) => actions.archiveProjectBlocker(blockerId)}
+            onArchive={(blockerId) => archiveBlocker(blockerId, blockers.find((blocker) => blocker.id === blockerId)?.title ?? "bloqueio")}
           />
           <EvidencePanel
             evidence={p.evidence}
             value={evidenceText}
             onChange={setEvidenceText}
             onSubmit={addEvidence}
-            onArchive={(evidenceId) => actions.archiveProjectEvidence(p.id, evidenceId)}
+            onArchive={(evidenceId) => archiveEvidence(evidenceId, p.evidence.find((evidence) => evidence.id === evidenceId)?.label ?? "evidência")}
           />
           <PanelList
             title="Alertas de desvio"
@@ -466,6 +549,16 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       {label}
       {children}
     </label>
+  );
+}
+
+function NoticeBanner({ tone, children }: { tone: Notice["tone"]; children: ReactNode }) {
+  const color = `var(--${tone})`;
+
+  return (
+    <div className="mt-3 rounded-xl border bg-background/25 px-3 py-2 text-sm font-semibold" style={{ color, borderColor: `color-mix(in oklab, ${color} 34%, var(--border))` }}>
+      {children}
+    </div>
   );
 }
 

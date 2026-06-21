@@ -176,7 +176,7 @@ export function Shell({ children }: { children: ReactNode }) {
 function MobileNav({ pathname }: { pathname: string }) {
   return (
     <div className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface/60 p-1">
-      {navItems.slice(0, 3).map((item) => {
+      {navItems.map((item) => {
         const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
         const Icon = item.icon;
         return (

@@ -16,6 +16,7 @@ import { useNucleoState } from "@/hooks/useNucleoState";
 import type { Project, ScopeItem } from "@/lib/nucleo-data";
 
 type PortalItem = ScopeItem & { project: Project };
+type Notice = { tone: "emerald" | "amber" | "rose"; text: string };
 
 export const Route = createFileRoute("/v02")({
   head: () => ({ meta: [{ title: "Portal V02 · Núcleo" }] }),
@@ -27,9 +28,18 @@ function V02() {
   const [selectedProjectId, setSelectedProjectId] = useState(state.projects[0]?.id ?? "");
   const [newItem, setNewItem] = useState("");
   const [editing, setEditing] = useState<{ projectId: string; itemId: string; text: string } | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const all: PortalItem[] = state.projects.flatMap((project) =>
     project.scope.filter((scope) => scope.bucket === "v02").map((scope) => ({ ...scope, project })),
   );
+  const canAdd = Boolean(selectedProjectId && newItem.trim());
+
+  function showNotice(nextNotice: Notice) {
+    setNotice(nextNotice);
+    window.setTimeout(() => {
+      setNotice((current) => (current?.text === nextNotice.text ? null : current));
+    }, 3200);
+  }
 
   useEffect(() => {
     if (selectedProjectId || state.projects.length === 0) return;
@@ -38,18 +48,35 @@ function V02() {
 
   function addItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedProjectId) return;
+    if (!canAdd) {
+      showNotice({ tone: "amber", text: "Digite uma ideia antes de enviar para o Portal V02." });
+      return;
+    }
 
     actions.createScopeItem(selectedProjectId, { bucket: "v02", text: newItem });
     setNewItem("");
+    showNotice({ tone: "emerald", text: "Item guardado no Portal V02." });
   }
 
   function saveItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editing) return;
+    if (!editing.text.trim()) {
+      showNotice({ tone: "amber", text: "O item V02 precisa manter uma descrição." });
+      return;
+    }
 
     actions.updateScopeItem(editing.projectId, editing.itemId, editing.text);
     setEditing(null);
+    showNotice({ tone: "emerald", text: "Item V02 atualizado." });
+  }
+
+  function archiveItem(item: PortalItem) {
+    const confirmed = window.confirm(`Arquivar "${item.text}" do Portal V02?`);
+    if (!confirmed) return;
+
+    actions.archiveScopeItem(item.project.id, item.id);
+    showNotice({ tone: "amber", text: "Item arquivado." });
   }
 
   return (
@@ -85,11 +112,12 @@ function V02() {
               Novo item V02
               <input value={newItem} onChange={(event) => setNewItem(event.target.value)} placeholder="Ideia para depois, sem abrir nova frente hoje" className="atlas-input" />
             </label>
-            <button type="submit" className="atlas-cta inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold uppercase tracking-[0.14em]">
+            <button type="submit" disabled={!canAdd} className="atlas-cta inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold uppercase tracking-[0.14em] disabled:cursor-not-allowed disabled:opacity-50">
               <Plus className="h-4 w-4" />
               Adicionar
             </button>
           </form>
+          {notice && <NoticeBanner tone={notice.tone}>{notice.text}</NoticeBanner>}
         </section>
 
         <div className="grid gap-3">
@@ -157,7 +185,7 @@ function V02() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => actions.archiveScopeItem(item.project.id, item.id)}
+                        onClick={() => archiveItem(item)}
                         className="rounded-lg border border-border bg-background/25 px-2.5 py-1.5 text-[11px] font-bold text-muted-foreground hover:text-[color:var(--rose)]"
                       >
                         <Archive className="mr-1 inline h-3.5 w-3.5" />
@@ -208,5 +236,15 @@ function IconButton({
     >
       {children}
     </button>
+  );
+}
+
+function NoticeBanner({ tone, children }: { tone: Notice["tone"]; children: React.ReactNode }) {
+  const color = `var(--${tone})`;
+
+  return (
+    <div className="mt-3 rounded-xl border bg-background/25 px-3 py-2 text-sm font-semibold" style={{ color, borderColor: `color-mix(in oklab, ${color} 34%, var(--border))` }}>
+      {children}
+    </div>
   );
 }
