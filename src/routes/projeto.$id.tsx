@@ -1,10 +1,12 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Shell } from "@/components/nucleo/Shell";
+import { useNucleoState } from "@/hooks/useNucleoState";
 import { projects, riskLabel, statusLabel, type Project } from "@/lib/nucleo-data";
 import {
   ArrowLeft, Target, ArrowRight, AlertTriangle, CheckCircle2,
-  Flag, MapPin, Hourglass, ShieldCheck, Layers, Ban,
+  Flag, MapPin, Hourglass, ShieldCheck, Layers, Ban, Plus,
 } from "lucide-react";
+import { useState } from "react";
 
 export const Route = createFileRoute("/projeto/$id")({
   loader: ({ params }) => {
@@ -26,11 +28,20 @@ export const Route = createFileRoute("/projeto/$id")({
 });
 
 function ProjectDetail() {
-  const { project: p } = Route.useLoaderData() as { project: Project };
+  const { project: loadedProject } = Route.useLoaderData() as { project: Project };
+  const { state, actions } = useNucleoState();
+  const [evidenceText, setEvidenceText] = useState("");
+  const p = state.projects.find((project) => project.id === loadedProject.id) ?? loadedProject;
   const c = `var(--${p.color})`;
   const v01 = p.scope.filter((s) => s.bucket === "v01");
   const v02 = p.scope.filter((s) => s.bucket === "v02");
   const fora = p.scope.filter((s) => s.bucket === "fora");
+
+  function addEvidence(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    actions.addProjectEvidence(p.id, evidenceText);
+    setEvidenceText("");
+  }
 
   return (
     <Shell>
@@ -78,6 +89,33 @@ function ProjectDetail() {
           </div>
         </section>
 
+        <section className="rounded-2xl border border-border bg-surface/60 p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-[color:var(--cyan)]">
+              <CheckCircle2 className="h-4 w-4" />
+              <h2 className="font-display text-lg font-bold">Checkpoints do projeto</h2>
+            </div>
+            <span className="rounded-lg border border-border bg-background/25 px-3 py-1 font-mono text-xs text-muted-foreground">
+              {p.checkpoints.filter((checkpoint) => checkpoint.done).length}/{p.checkpoints.length}
+            </span>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {p.checkpoints.map((checkpoint) => (
+              <button
+                key={checkpoint.id}
+                type="button"
+                onClick={() => actions.toggleProjectCheckpoint(p.id, checkpoint.id)}
+                className="flex items-center gap-3 rounded-xl border border-border bg-background/25 px-3 py-3 text-left text-sm transition hover:border-[color:var(--cyan)]/40 hover:bg-background/40"
+              >
+                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border ${checkpoint.done ? "border-[color:var(--emerald)]/40 text-[color:var(--emerald)]" : "border-border text-muted-foreground"}`}>
+                  <CheckCircle2 className="h-4 w-4" />
+                </span>
+                <span className={checkpoint.done ? "font-semibold text-foreground" : "text-muted-foreground"}>{checkpoint.label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* Scope buckets */}
         <div className="grid gap-4 lg:grid-cols-3">
           <ScopeBucket title="Escopo V01" tone="cyan" icon={<Target className="h-4 w-4" />} items={v01.map(s => s.text)} />
@@ -90,9 +128,12 @@ function ProjectDetail() {
           <PanelList title="Dependências" icon={<Hourglass className="h-4 w-4" />} tone="amber"
             empty="Sem dependências externas."
             items={p.dependencies.map((d) => ({ key: d.id, primary: d.who, secondary: d.what, tail: `${d.waitingDays}d` }))} />
-          <PanelList title="Evidências" icon={<ShieldCheck className="h-4 w-4" />} tone="emerald"
-            empty="Sem evidências registradas."
-            items={p.evidence.map((e) => ({ key: e.id, primary: e.label, tail: e.when }))} />
+          <EvidencePanel
+            evidence={p.evidence.map((e) => ({ key: e.id, primary: e.label, tail: e.when }))}
+            value={evidenceText}
+            onChange={setEvidenceText}
+            onSubmit={addEvidence}
+          />
           <PanelList title="Alertas de desvio" icon={<AlertTriangle className="h-4 w-4" />} tone="rose"
             empty="Tudo sob controle."
             items={p.alerts.map((a, i) => ({ key: String(i), primary: a }))} />
@@ -142,6 +183,55 @@ function ScopeBucket({ title, tone, icon, items }: { title: string; tone: "cyan"
           <li key={i} className="flex items-center gap-2 px-4 py-2.5 text-sm">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: c, boxShadow: `0 0 8px ${c}` }} />
             <span className="min-w-0">{t}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function EvidencePanel({
+  evidence,
+  value,
+  onChange,
+  onSubmit,
+}: {
+  evidence: { key: string; primary: string; tail?: string }[];
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  const c = "var(--emerald)";
+
+  return (
+    <section className="rounded-2xl border border-border bg-surface/60">
+      <header className="flex items-center gap-2 border-b border-border px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: c }}>
+        <ShieldCheck className="h-4 w-4" />Evidências
+      </header>
+      <form onSubmit={onSubmit} className="border-b border-border p-4">
+        <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Registrar evidência
+          <div className="flex gap-2">
+            <input
+              value={value}
+              onChange={(event) => onChange(event.target.value)}
+              placeholder="Ex.: escopo V01 revisado"
+              className="min-w-0 flex-1 rounded-xl border border-border bg-background/25 px-3 py-2 text-sm font-normal normal-case tracking-normal text-foreground outline-none placeholder:text-muted-foreground focus:border-[color:var(--emerald)]"
+            />
+            <button type="submit" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[color:var(--emerald)]/35 bg-[color:color-mix(in_oklab,var(--emerald)_12%,transparent)] text-[color:var(--emerald)]">
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+        </label>
+      </form>
+      <ul className="divide-y divide-border px-4">
+        {evidence.length === 0 && <li className="py-4 text-sm text-muted-foreground">Sem evidências registradas.</li>}
+        {evidence.map((item) => (
+          <li key={item.key} className="flex items-center justify-between gap-3 py-2.5">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">{item.primary}</div>
+            </div>
+            {item.tail && <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{item.tail}</span>}
           </li>
         ))}
       </ul>

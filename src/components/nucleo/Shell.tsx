@@ -12,7 +12,8 @@ import {
   Zap,
   Layers,
 } from "lucide-react";
-import { dashboardStats, focusToday, owner } from "@/lib/nucleo-data";
+import { useNucleoState } from "@/hooks/useNucleoState";
+import { owner } from "@/lib/nucleo-data";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
@@ -27,6 +28,9 @@ const navItems = [
 
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { state } = useNucleoState();
+  const { dashboardStats, focusToday, todayMission } = state;
+  const xpPercent = Math.min(100, Math.round((dashboardStats.xpCurrent / dashboardStats.xpTotal) * 100));
 
   return (
     <div className="relative min-h-screen text-foreground">
@@ -70,7 +74,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-3">
                 <div
                   className="h-full rounded-full bg-[linear-gradient(90deg,var(--cyan),var(--violet),var(--amber))] shadow-[0_0_12px_var(--cyan)]"
-                  style={{ width: `${(dashboardStats.xpCurrent / dashboardStats.xpTotal) * 100}%` }}
+                  style={{ width: `${xpPercent}%` }}
                 />
               </div>
             </div>
@@ -112,15 +116,15 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="m-4 rounded-xl border border-border bg-surface/60 p-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Foco de hoje</div>
             <div className="mt-3 flex items-center gap-3">
-              <FocusRing value={owner.focusToday} />
+              <FocusRing value={todayMission.progress} />
               <div>
-                <div className="font-display text-2xl font-bold text-[color:var(--cyan)]">{owner.focusToday}%</div>
+                <div className="font-display text-2xl font-bold text-[color:var(--cyan)]">{todayMission.progress}%</div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">foco</div>
               </div>
             </div>
             <div className="mt-3 text-[11px] text-muted-foreground">Excelente. Continue assim!</div>
             <div className="mt-3 flex items-center justify-between border-t border-border pt-3 font-mono text-xs">
-              <span className="text-foreground">{owner.focusTime}</span>
+              <span className="text-foreground">{focusToday.duration}</span>
               <span className="text-[10px] uppercase tracking-wider text-muted-foreground">tempo de foco</span>
             </div>
           </div>

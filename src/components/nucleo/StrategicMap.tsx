@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertTriangle,
   ArrowRight,
@@ -24,17 +24,8 @@ import {
   Trophy,
   Zap,
 } from "lucide-react";
+import { useNucleoState } from "@/hooks/useNucleoState";
 import {
-  bossItems,
-  dashboardStats,
-  focusToday,
-  mentalEnergy,
-  missionJourney,
-  operationalCards,
-  primaryProject,
-  riskRadar,
-  scopeTerritories,
-  todayMission,
   type MissionJourneyStep,
   type ScopeTerritory,
 } from "@/lib/nucleo-data";
@@ -79,6 +70,9 @@ export function StrategicMapView() {
 }
 
 function GamifiedTopbar() {
+  const { state } = useNucleoState();
+  const { dashboardStats } = state;
+
   return (
     <header className="atlas-panel flex flex-wrap items-center justify-between gap-3 px-4 py-3">
       <div className="flex items-center gap-3">
@@ -138,6 +132,16 @@ function StatPill({
 }
 
 function MissionHero() {
+  const navigate = useNavigate();
+  const { state, actions } = useNucleoState();
+  const { todayMission } = state;
+  const primaryProject = state.projects.find((project) => project.isPrimary) ?? state.projects[0];
+
+  function startMissionFocus() {
+    actions.startFocusSession();
+    void navigate({ to: "/foco" });
+  }
+
   return (
     <section className="atlas-hero p-5 lg:p-6">
       <div className="absolute inset-0 bg-grid opacity-[0.08]" aria-hidden />
@@ -169,13 +173,14 @@ function MissionHero() {
               </div>
               <p className="text-lg font-semibold leading-snug text-foreground">{todayMission.nextAction}</p>
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <Link
-                  to="/foco"
+                <button
+                  type="button"
+                  onClick={startMissionFocus}
                   className="atlas-cta inline-flex min-h-12 items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold uppercase tracking-[0.16em]"
                 >
                   {todayMission.cta}
                   <ArrowRight className="h-4 w-4" />
-                </Link>
+                </button>
                 <span className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-surface/70 px-3 text-sm text-muted-foreground">
                   <Timer className="h-4 w-4 text-[color:var(--amber)]" />
                   {todayMission.suggestedTime}
@@ -197,20 +202,28 @@ function MissionHero() {
           </div>
           <ul className="grid gap-2">
             {todayMission.completionChecklist.map((item) => (
-              <li key={item} className="flex items-start gap-2 text-sm leading-snug">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--emerald)]" />
-                <span>{item}</span>
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => actions.toggleMissionChecklistItem(item.id)}
+                  className="flex w-full items-start gap-2 rounded-xl border border-border bg-background/25 px-3 py-2 text-left text-sm leading-snug transition hover:border-[color:var(--emerald)]/40 hover:bg-background/40"
+                >
+                  <CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${item.done ? "text-[color:var(--emerald)]" : "text-muted-foreground"}`} />
+                  <span className={item.done ? "text-foreground" : "text-muted-foreground"}>{item.text}</span>
+                </button>
               </li>
             ))}
           </ul>
-          <Link
-            to="/projeto/$id"
-            params={{ id: primaryProject.id }}
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[color:var(--emerald)]/35 bg-background/30 px-3 py-2.5 text-sm font-semibold text-[color:var(--emerald)] transition hover:bg-[color:color-mix(in_oklab,var(--emerald)_12%,transparent)]"
-          >
-            Abrir detalhe do projeto
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          {primaryProject && (
+            <Link
+              to="/projeto/$id"
+              params={{ id: primaryProject.id }}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[color:var(--emerald)]/35 bg-background/30 px-3 py-2.5 text-sm font-semibold text-[color:var(--emerald)] transition hover:bg-[color:color-mix(in_oklab,var(--emerald)_12%,transparent)]"
+            >
+              Abrir detalhe do projeto
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          )}
         </div>
       </div>
     </section>
@@ -254,6 +267,10 @@ function ProgressRing({ value }: { value: number }) {
 }
 
 function MissionJourney() {
+  const { state, actions } = useNucleoState();
+  const { missionJourney } = state;
+  const currentStep = missionJourney.find((step) => step.state === "active")?.label ?? "Campanha concluida";
+
   return (
     <section className="atlas-panel p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -265,21 +282,37 @@ function MissionJourney() {
           </div>
         </div>
         <span className="rounded-full border border-[color:var(--cyan)]/35 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--cyan)]">
-          Etapa atual: Revisão & Ajustes
+          Etapa atual: {currentStep}
         </span>
       </div>
 
       <div className="relative grid gap-3 md:grid-cols-6">
         <div className="absolute left-6 right-6 top-7 hidden h-px bg-[linear-gradient(90deg,var(--emerald),var(--cyan),var(--border),var(--border))] md:block" aria-hidden />
         {missionJourney.map((step, index) => (
-          <JourneyStep key={step.id} step={step} index={index + 1} />
+          <JourneyStep
+            key={step.id}
+            step={step}
+            index={index + 1}
+            canInteract={step.state === "active" || (step.state === "blocked" && missionJourney[index - 1]?.state === "done")}
+            onToggle={() => actions.toggleJourneyStep(step.id)}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-function JourneyStep({ step, index }: { step: MissionJourneyStep; index: number }) {
+function JourneyStep({
+  step,
+  index,
+  canInteract,
+  onToggle,
+}: {
+  step: MissionJourneyStep;
+  index: number;
+  canInteract: boolean;
+  onToggle: () => void;
+}) {
   const meta = {
     done: {
       icon: <CheckCircle2 className="h-4 w-4" />,
@@ -302,7 +335,12 @@ function JourneyStep({ step, index }: { step: MissionJourneyStep; index: number 
   }[step.state];
 
   return (
-    <div className={`relative rounded-2xl border border-border bg-surface/70 p-3 ${meta.className}`}>
+    <button
+      type="button"
+      disabled={!canInteract}
+      onClick={onToggle}
+      className={`relative rounded-2xl border border-border bg-surface/70 p-3 text-left transition ${canInteract ? "hover:-translate-y-0.5 hover:border-[color:var(--cyan)]/40" : "cursor-default opacity-80"} ${meta.className}`}
+    >
       <div className="mb-3 flex items-center justify-between">
         <span className="font-mono text-[10px] text-muted-foreground">#{String(index).padStart(2, "0")}</span>
         <span className="grid h-8 w-8 place-items-center rounded-full border border-current/35" style={{ color: meta.color, background: `color-mix(in oklab, ${meta.color} 12%, transparent)` }}>
@@ -313,11 +351,14 @@ function JourneyStep({ step, index }: { step: MissionJourneyStep; index: number 
       <div className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: meta.color }}>
         {meta.label}
       </div>
-    </div>
+    </button>
   );
 }
 
 function ScopeCampaignMap() {
+  const { state } = useNucleoState();
+  const { scopeTerritories } = state;
+
   return (
     <section className="atlas-map-surface p-4 lg:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -432,6 +473,9 @@ function CommandColumn() {
 }
 
 function BossCard() {
+  const { state } = useNucleoState();
+  const { bossItems } = state;
+
   return (
     <section className="atlas-danger-panel p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -467,6 +511,13 @@ function BossCard() {
 }
 
 function RiskRadarCard() {
+  const { state } = useNucleoState();
+  const { riskRadar } = state;
+  const radarItems = [
+    ...riskRadar.items,
+    ...state.alerts.slice(0, 2).map((alert) => alert.text),
+  ];
+
   return (
     <section className="atlas-panel p-4">
       <div className="mb-3 flex items-center gap-2 text-[color:var(--amber)]">
@@ -474,7 +525,7 @@ function RiskRadarCard() {
         <h2 className="font-display text-lg font-bold">{riskRadar.headline}</h2>
       </div>
       <ul className="grid gap-2">
-        {riskRadar.items.map((item) => (
+        {radarItems.map((item) => (
           <li key={item} className="flex items-start gap-2 rounded-xl border border-border bg-background/25 p-3 text-sm">
             <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--amber)]" />
             <span>{item}</span>
@@ -486,6 +537,9 @@ function RiskRadarCard() {
 }
 
 function MentalEnergyCard() {
+  const { state } = useNucleoState();
+  const { mentalEnergy } = state;
+
   return (
     <section className="atlas-success-panel p-4">
       <div className="mb-3 flex items-center justify-between">
@@ -511,6 +565,15 @@ function MentalEnergyCard() {
 }
 
 function FocusCard() {
+  const navigate = useNavigate();
+  const { state, actions } = useNucleoState();
+  const { focusToday } = state;
+
+  function startFocus() {
+    actions.startFocusSession();
+    void navigate({ to: "/foco" });
+  }
+
   return (
     <section className="atlas-panel atlas-glow-purple p-4">
       <div className="mb-3 flex items-center gap-2 text-[color:var(--violet)]">
@@ -524,23 +587,57 @@ function FocusCard() {
         </div>
         <Zap className="h-9 w-9 text-[color:var(--amber)]" />
       </div>
-      <Link to="/foco" className="atlas-cta mt-4 flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold uppercase tracking-[0.14em]">
+      <button
+        type="button"
+        onClick={startFocus}
+        className="atlas-cta mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold uppercase tracking-[0.14em]"
+      >
         {focusToday.cta}
         <ArrowRight className="h-4 w-4" />
-      </Link>
+      </button>
     </section>
   );
 }
 
 function OperationalRow() {
+  const { state, actions } = useNucleoState();
+  const { operationalCards } = state;
+  const recentVictories = state.victories.slice(0, 5);
+
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <BottomPanel icon={<Ban className="h-4 w-4" />} title="Não Fazer Hoje" tone="rose" className="atlas-danger-panel">
         <ul className="grid gap-2">
           {operationalCards.doNotToday.map((item) => (
-            <li key={item} className="flex items-start gap-2 text-sm leading-snug">
-              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--rose)] shadow-[0_0_8px_var(--rose)]" />
-              <span>{item}</span>
+            <li key={item.id} className="rounded-xl border border-border bg-background/25 p-3">
+              <div className="flex items-start gap-2 text-sm leading-snug">
+                <span
+                  className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${
+                    item.status === "avoided"
+                      ? "bg-[color:var(--emerald)] shadow-[0_0_8px_var(--emerald)]"
+                      : item.status === "violated"
+                        ? "bg-[color:var(--rose)] shadow-[0_0_8px_var(--rose)]"
+                        : "bg-[color:var(--amber)] shadow-[0_0_8px_var(--amber)]"
+                  }`}
+                />
+                <span>{item.text}</span>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => actions.markDoNotTodayAvoided(item.id)}
+                  className="rounded-lg border border-[color:var(--emerald)]/30 bg-[color:color-mix(in_oklab,var(--emerald)_10%,transparent)] px-2.5 py-1 text-[11px] font-bold text-[color:var(--emerald)] transition hover:bg-[color:color-mix(in_oklab,var(--emerald)_16%,transparent)]"
+                >
+                  Evitei
+                </button>
+                <button
+                  type="button"
+                  onClick={() => actions.markDoNotTodayViolated(item.id)}
+                  className="rounded-lg border border-[color:var(--rose)]/30 bg-[color:color-mix(in_oklab,var(--rose)_10%,transparent)] px-2.5 py-1 text-[11px] font-bold text-[color:var(--rose)] transition hover:bg-[color:color-mix(in_oklab,var(--rose)_16%,transparent)]"
+                >
+                  Caí nisso
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -571,7 +668,7 @@ function OperationalRow() {
 
       <BottomPanel icon={<Trophy className="h-4 w-4" />} title="Vitórias Recentes" tone="emerald" className="atlas-success-panel">
         <ul className="grid gap-2">
-          {operationalCards.recentVictories.map((item) => (
+          {recentVictories.map((item) => (
             <li key={item.id} className="flex items-start justify-between gap-3 rounded-xl border border-border bg-background/25 p-3">
               <span className="text-sm font-semibold leading-snug">{item.text}</span>
               <span className="shrink-0 text-xs text-muted-foreground">{item.when}</span>

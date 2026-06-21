@@ -5,6 +5,7 @@ export interface Checkpoint {
   id: string;
   label: string;
   done: boolean;
+  xpAwarded?: boolean;
 }
 
 export interface ScopeItem {
@@ -74,20 +75,31 @@ export interface DashboardStats {
 
 export interface TodayMission {
   sectionTitle: string;
+  id: string;
+  projectId: string;
   mission: string;
   projectTag: string;
   nextAction: string;
   cta: string;
   suggestedTime: string;
   progress: number;
-  completionChecklist: string[];
+  completionChecklist: MissionChecklistItem[];
   deliveryDate: string;
+  completedAt?: string;
+}
+
+export interface MissionChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+  xpAwarded?: boolean;
 }
 
 export interface MissionJourneyStep {
   id: string;
   label: string;
   state: "done" | "active" | "blocked";
+  xpAwarded?: boolean;
 }
 
 export interface ScopeTerritory {
@@ -128,7 +140,7 @@ export interface FocusToday {
 }
 
 export interface OperationalCards {
-  doNotToday: string[];
+  doNotToday: DoNotTodayItem[];
   waitingThirdParties: Array<{ id: string; source: string; topic: string; days: string }>;
   deliveryV01: {
     title: string;
@@ -136,6 +148,64 @@ export interface OperationalCards {
     progress: string;
   };
   recentVictories: Victory[];
+}
+
+export interface DoNotTodayItem {
+  id: string;
+  text: string;
+  status?: "avoided" | "violated";
+  lastMarkedAt?: string;
+}
+
+export type FocusSessionStatus = "running" | "paused" | "completed" | "cancelled";
+export type FocusSessionResult = "avancei" | "travei" | "desviei" | "concluido";
+
+export interface FocusSession {
+  id: string;
+  missionId: string;
+  projectId: string;
+  startedAt: string;
+  lastResumedAt?: string;
+  endedAt?: string;
+  durationSeconds: number;
+  status: FocusSessionStatus;
+  result?: FocusSessionResult;
+  note: string;
+  evidence: string;
+  xpEarned: number;
+}
+
+export interface AntiDriftLogEntry {
+  id: string;
+  itemId: string;
+  text: string;
+  status: "avoided" | "violated";
+  createdAt: string;
+  xpEarned: number;
+}
+
+export interface NucleoAlert {
+  id: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface NucleoState {
+  dashboardStats: DashboardStats;
+  todayMission: TodayMission;
+  missionJourney: MissionJourneyStep[];
+  scopeTerritories: ScopeTerritory[];
+  bossItems: BossItem[];
+  riskRadar: RiskRadar;
+  mentalEnergy: MentalEnergy;
+  focusToday: FocusToday;
+  operationalCards: OperationalCards;
+  projects: Project[];
+  focusSessions: FocusSession[];
+  victories: Victory[];
+  antiDriftLog: AntiDriftLogEntry[];
+  alerts: NucleoAlert[];
+  lastUpdatedAt: string;
 }
 
 export const owner = {
@@ -162,6 +232,8 @@ export const dashboardStats: DashboardStats = {
 
 export const todayMission: TodayMission = {
   sectionTitle: "Missão Principal do Dia",
+  id: "mission-rir-v01",
+  projectId: "seplan-ia",
   mission: "Revisar versão V01 do Relatório de Impacto Regulatório",
   projectTag: "Projeto: Parecer Técnico SEPLAN",
   nextAction: "Abrir a última versão e revisar seção 3.2 - Análise de Impacto",
@@ -169,10 +241,10 @@ export const todayMission: TodayMission = {
   suggestedTime: "90 min",
   progress: 48,
   completionChecklist: [
-    "Seção 3.2 revisada",
-    "Análise alinhada com jurídico",
-    "Referências validadas",
-    "Versão enviada ao orientador",
+    { id: "secao-32", text: "Seção 3.2 revisada", done: true },
+    { id: "juridico", text: "Análise alinhada com jurídico", done: true },
+    { id: "referencias", text: "Referências validadas", done: false },
+    { id: "orientador", text: "Versão enviada ao orientador", done: false },
   ],
   deliveryDate: "21 JUN 2026",
 };
@@ -287,10 +359,10 @@ export const focusToday: FocusToday = {
 
 export const operationalCards: OperationalCards = {
   doNotToday: [
-    "Não ajustar detalhes visuais",
-    "Não iniciar integrações externas",
-    "Não responder e-mails não urgentes",
-    "Não criar novas automações",
+    { id: "visual", text: "Não ajustar detalhes visuais" },
+    { id: "integracoes", text: "Não iniciar integrações externas" },
+    { id: "emails", text: "Não responder e-mails não urgentes" },
+    { id: "automacoes", text: "Não criar novas automações" },
   ],
   waitingThirdParties: [
     { id: "afc", source: "Dados da AFC", topic: "Auditoria Fiscal", days: "1 dia" },
@@ -562,3 +634,29 @@ export const statusLabel: Record<ProjectStatus, string> = {
   bloqueado: "Bloqueado",
   concluido: "Concluído",
 };
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+export function createDefaultNucleoState(): NucleoState {
+  const now = new Date().toISOString();
+
+  return {
+    dashboardStats: clone(dashboardStats),
+    todayMission: clone(todayMission),
+    missionJourney: clone(missionJourney),
+    scopeTerritories: clone(scopeTerritories),
+    bossItems: clone(bossItems),
+    riskRadar: clone(riskRadar),
+    mentalEnergy: clone(mentalEnergy),
+    focusToday: clone(focusToday),
+    operationalCards: clone(operationalCards),
+    projects: clone(projects),
+    focusSessions: [],
+    victories: clone(operationalCards.recentVictories),
+    antiDriftLog: [],
+    alerts: [],
+    lastUpdatedAt: now,
+  };
+}

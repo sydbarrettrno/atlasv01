@@ -1,18 +1,22 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Sword, Skull, Target, Zap, Trophy, AlertTriangle, ShieldCheck, Flame,
   ArrowRight, Hourglass, Crown, Layers, CheckCircle2,
 } from "lucide-react";
 import {
-  projects, primaryProject, owner, waiting, doNotToday, victories,
-  riskLabel, statusLabel,
+  owner,
+  riskLabel,
+  statusLabel,
+  type Project,
 } from "@/lib/nucleo-data";
+import { useNucleoState } from "@/hooks/useNucleoState";
 import { Shell } from "./Shell";
 import { cn } from "@/lib/utils";
 
 export function RPGJourneyView() {
-  const xpPct = Math.round((owner.xp / owner.xpNextLevel) * 100);
-  const other = projects.filter((p) => !p.isPrimary).slice(0, 4);
+  const { state } = useNucleoState();
+  const xpPct = Math.min(100, Math.round((state.dashboardStats.xpCurrent / state.dashboardStats.xpTotal) * 100));
+  const other = state.projects.filter((p) => !p.isPrimary).slice(0, 4);
 
   return (
     <Shell>
@@ -39,8 +43,8 @@ export function RPGJourneyView() {
               {/* XP bar */}
               <div className="mt-5 max-w-md">
                 <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground">
-                  <span>NÍVEL {owner.level}</span>
-                  <span className="font-mono">{owner.xp} / {owner.xpNextLevel} XP</span>
+                  <span>NÍVEL {state.dashboardStats.level}</span>
+                  <span className="font-mono">{state.dashboardStats.xpCurrent} / {state.dashboardStats.xpTotal} XP</span>
                 </div>
                 <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-surface-3">
                   <div
@@ -54,9 +58,9 @@ export function RPGJourneyView() {
 
               {/* Stats */}
               <div className="mt-5 grid grid-cols-3 gap-3 max-w-md">
-                <Stat icon={<Flame className="h-3.5 w-3.5" />} label="Streak" value={`${owner.streak}d`} tone="amber" />
-                <Stat icon={<Zap className="h-3.5 w-3.5" />} label="Energia" value={`${owner.energy}%`} tone="cyan" />
-                <Stat icon={<Target className="h-3.5 w-3.5" />} label="Foco" value={`${owner.focusToday}%`} tone="violet" />
+                <Stat icon={<Flame className="h-3.5 w-3.5" />} label="Streak" value={`${state.dashboardStats.focusStreak}d`} tone="amber" />
+                <Stat icon={<Zap className="h-3.5 w-3.5" />} label="Energia" value={`${state.mentalEnergy.value}%`} tone="cyan" />
+                <Stat icon={<Target className="h-3.5 w-3.5" />} label="Foco" value={`${state.todayMission.progress}%`} tone="violet" />
               </div>
             </div>
 
@@ -136,7 +140,17 @@ function BossCard() {
 }
 
 function MainMissionCard() {
-  const p = primaryProject;
+  const navigate = useNavigate();
+  const { state, actions } = useNucleoState();
+  const p = state.projects.find((project) => project.isPrimary) ?? state.projects[0];
+
+  function startFocus() {
+    actions.startFocusSession();
+    void navigate({ to: "/foco" });
+  }
+
+  if (!p) return null;
+
   return (
     <section className="relative overflow-hidden rounded-2xl border border-border bg-surface/60 p-5 backdrop-blur">
       <div className="absolute inset-x-0 top-0 h-px overflow-hidden">
@@ -162,32 +176,47 @@ function MainMissionCard() {
       <div className="mt-5">
         <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground">
           <span>Progresso da missão</span>
-          <span className="font-mono text-[color:var(--cyan)]">{p.progress}%</span>
+          <span className="font-mono text-[color:var(--cyan)]">{state.todayMission.progress}%</span>
         </div>
         <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-surface-3">
-          <div className="h-full" style={{ width: `${p.progress}%`, background: "var(--gradient-primary)", boxShadow: "0 0 16px oklch(0.78 0.16 210 / 0.5)" }} />
+          <div className="h-full" style={{ width: `${state.todayMission.progress}%`, background: "var(--gradient-primary)", boxShadow: "0 0 16px oklch(0.78 0.16 210 / 0.5)" }} />
         </div>
       </div>
 
       {/* Checkpoints */}
       <ol className="mt-5 space-y-2">
         {p.checkpoints.map((c, i) => (
-          <li key={c.id} className="flex items-center gap-3 rounded-xl border border-border bg-surface-2/60 px-3 py-2.5">
+          <li key={c.id}>
+            <button
+              type="button"
+              onClick={() => actions.toggleProjectCheckpoint(p.id, c.id)}
+              className="flex w-full items-center gap-3 rounded-xl border border-border bg-surface-2/60 px-3 py-2.5 text-left transition hover:border-[color:var(--cyan)]/40"
+            >
             <div className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-lg font-mono text-xs font-bold",
               c.done ? "bg-[color:var(--emerald)] text-primary-foreground" : "border border-border bg-surface text-muted-foreground")}>
               {c.done ? <CheckCircle2 className="h-4 w-4" /> : String(i + 1).padStart(2, "0")}
             </div>
             <span className={cn("flex-1 text-sm", c.done && "text-muted-foreground line-through")}>{c.label}</span>
             {!c.done && i === 0 && <span className="rounded-md border border-[color:var(--cyan)]/40 bg-[color:color-mix(in_oklab,var(--cyan)_14%,transparent)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[color:var(--cyan)]">Agora</span>}
+            </button>
           </li>
         ))}
       </ol>
 
-      <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
         <div className="text-[11px] text-muted-foreground">Critério de conclusão</div>
-        <Link to="/projeto/$id" params={{ id: p.id }} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs font-semibold transition hover:border-[color:var(--cyan)]/60 hover:text-[color:var(--cyan)]">
-          Abrir projeto <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={startFocus}
+            className="atlas-cta inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em]"
+          >
+            Iniciar Agora <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+          <Link to="/projeto/$id" params={{ id: p.id }} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs font-semibold transition hover:border-[color:var(--cyan)]/60 hover:text-[color:var(--cyan)]">
+            Abrir projeto <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
       </div>
       <p className="mt-2 text-sm">{p.completionCriteria}</p>
     </section>
@@ -195,7 +224,8 @@ function MainMissionCard() {
 }
 
 function EnergyAndRiskRadar() {
-  const risks = projects.filter((p) => p.risk !== "low").slice(0, 4);
+  const { state } = useNucleoState();
+  const risks = state.projects.filter((p) => p.risk !== "low").slice(0, 4);
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-border bg-surface/60 p-5">
@@ -206,11 +236,11 @@ function EnergyAndRiskRadar() {
           <span className="font-mono text-xs text-muted-foreground">tempo real</span>
         </div>
         <div className="mt-3 flex items-baseline gap-2">
-          <span className="font-display text-4xl font-bold text-[color:var(--violet)]">{owner.energy}</span>
+          <span className="font-display text-4xl font-bold text-[color:var(--violet)]">{state.mentalEnergy.value}</span>
           <span className="text-xs text-muted-foreground">/ 100</span>
         </div>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-3">
-          <div className="h-full" style={{ width: `${owner.energy}%`, background: "linear-gradient(90deg, var(--violet), var(--cyan))", boxShadow: "0 0 12px var(--violet)" }} />
+          <div className="h-full" style={{ width: `${state.mentalEnergy.value}%`, background: "linear-gradient(90deg, var(--violet), var(--cyan))", boxShadow: "0 0 12px var(--violet)" }} />
         </div>
         <div className="mt-2 text-[11px] text-muted-foreground">Bom nível. Mantenha rituais de pausa a cada 90min.</div>
       </section>
@@ -243,7 +273,7 @@ function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string })
   );
 }
 
-function QuestCard({ project }: { project: typeof projects[0] }) {
+function QuestCard({ project }: { project: Project }) {
   const c = `var(--${project.color})`;
   return (
     <Link
@@ -274,7 +304,10 @@ function QuestCard({ project }: { project: typeof projects[0] }) {
 }
 
 function PortalV02() {
-  const v02 = primaryProject.scope.filter((s) => s.bucket === "v02");
+  const { state } = useNucleoState();
+  const primaryProject = state.projects.find((project) => project.isPrimary) ?? state.projects[0];
+  const v02 = primaryProject?.scope.filter((s) => s.bucket === "v02") ?? [];
+
   return (
     <section className="relative overflow-hidden rounded-2xl border border-[color:var(--violet)]/40 p-5" style={{ background: "linear-gradient(160deg, color-mix(in oklab, var(--violet) 14%, transparent), transparent)" }}>
       <div className="absolute -right-10 -bottom-10 h-32 w-32 rounded-full opacity-30 blur-3xl" style={{ background: "var(--violet)" }} />
@@ -298,16 +331,42 @@ function PortalV02() {
 }
 
 function DoNotTodayCard() {
+  const { state, actions } = useNucleoState();
+
   return (
     <section className="rounded-2xl border border-[color:var(--rose)]/30 p-5" style={{ background: "color-mix(in oklab, var(--rose) 8%, transparent)" }}>
       <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[color:var(--rose)]">
         <span className="grid h-5 w-5 place-items-center rounded-full border border-current">⊘</span> Não fazer hoje
       </div>
-      <ul className="space-y-1.5 text-sm">
-        {doNotToday.map((d, i) => (
-          <li key={i} className="flex items-start gap-2 text-muted-foreground">
-            <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-[color:var(--rose)]" />
-            <span>{d}</span>
+      <ul className="space-y-2 text-sm">
+        {state.operationalCards.doNotToday.map((item) => (
+          <li key={item.id} className="rounded-xl border border-[color:var(--rose)]/20 bg-background/20 p-2.5">
+            <div className="flex items-start gap-2 text-muted-foreground">
+              <span className={`mt-1 h-1 w-1 shrink-0 rounded-full ${
+                item.status === "avoided"
+                  ? "bg-[color:var(--emerald)]"
+                  : item.status === "violated"
+                    ? "bg-[color:var(--rose)]"
+                    : "bg-[color:var(--amber)]"
+              }`} />
+              <span>{item.text}</span>
+            </div>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => actions.markDoNotTodayAvoided(item.id)}
+                className="rounded-lg border border-[color:var(--emerald)]/30 px-2 py-1 text-[10px] font-bold text-[color:var(--emerald)]"
+              >
+                Evitei
+              </button>
+              <button
+                type="button"
+                onClick={() => actions.markDoNotTodayViolated(item.id)}
+                className="rounded-lg border border-[color:var(--rose)]/30 px-2 py-1 text-[10px] font-bold text-[color:var(--rose)]"
+              >
+                Caí nisso
+              </button>
+            </div>
           </li>
         ))}
       </ul>
@@ -316,13 +375,15 @@ function DoNotTodayCard() {
 }
 
 function RecentLootCard() {
+  const { state } = useNucleoState();
+
   return (
     <section className="rounded-2xl border border-border bg-surface/60 p-5">
       <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[color:var(--emerald)]">
         <Trophy className="h-3.5 w-3.5" /> Loot Recente
       </div>
       <ul className="space-y-2 text-sm">
-        {victories.slice(0, 4).map((v) => (
+        {state.victories.slice(0, 4).map((v) => (
           <li key={v.id} className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[color:var(--emerald)]" />
