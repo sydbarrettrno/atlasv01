@@ -27,10 +27,13 @@ import {
 import { useNucleoState } from "@/hooks/useNucleoState";
 import {
   type MissionJourneyStep,
+  type Project,
+  type ProjectStatus,
+  type RiskLevel,
   type ScopeTerritory,
 } from "@/lib/nucleo-data";
 import { Shell } from "./Shell";
-import type { ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 
 const toneColor: Record<ScopeTerritory["tone"], string> = {
   cyan: "var(--cyan)",
@@ -46,6 +49,24 @@ const statusTone: Record<ScopeTerritory["status"], string> = {
   Atenção: "var(--amber)",
   Bloqueado: "var(--rose)",
   Concluído: "var(--emerald)",
+};
+
+type NewProjectDraft = {
+  name: string;
+  currentMission: string;
+  nextAction: string;
+  risk: RiskLevel;
+  status: ProjectStatus;
+  color: Project["color"];
+};
+
+const initialNewProjectDraft: NewProjectDraft = {
+  name: "",
+  currentMission: "",
+  nextAction: "",
+  risk: "med",
+  status: "planejamento",
+  color: "cyan",
 };
 
 export function StrategicMapView() {
@@ -376,8 +397,28 @@ function JourneyStep({
 }
 
 function ScopeCampaignMap() {
-  const { state } = useNucleoState();
+  const { state, actions } = useNucleoState();
   const { scopeTerritories } = state;
+  const [draft, setDraft] = useState<NewProjectDraft>(initialNewProjectDraft);
+
+  function createTerritory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = draft.name.trim();
+    if (!name) return;
+
+    actions.createProject({
+      name,
+      currentState: "Território recém-cadastrado no mapa estratégico.",
+      destination: "Destino V01 a definir.",
+      currentMission: draft.currentMission.trim() || "Definir missão atual",
+      nextAction: draft.nextAction.trim() || "Definir próxima ação",
+      completionCriteria: "Critério de conclusão a definir.",
+      risk: draft.risk,
+      status: draft.status,
+      color: draft.color,
+    });
+    setDraft(initialNewProjectDraft);
+  }
 
   return (
     <section className="atlas-map-surface p-4 lg:p-5">
@@ -395,6 +436,65 @@ function ScopeCampaignMap() {
           ))}
         </div>
       </div>
+
+      <form onSubmit={createTerritory} className="mb-4 grid gap-3 rounded-2xl border border-[color:var(--cyan)]/25 bg-background/25 p-3 lg:grid-cols-[1.1fr_1fr_1fr_130px_130px_auto] lg:items-end">
+        <label className="grid gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          Novo território
+          <input
+            value={draft.name}
+            onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+            placeholder="Nome do projeto"
+            className="atlas-input"
+          />
+        </label>
+        <label className="grid gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          Missão
+          <input
+            value={draft.currentMission}
+            onChange={(event) => setDraft((current) => ({ ...current, currentMission: event.target.value }))}
+            placeholder="Missão atual"
+            className="atlas-input"
+          />
+        </label>
+        <label className="grid gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          Próxima ação
+          <input
+            value={draft.nextAction}
+            onChange={(event) => setDraft((current) => ({ ...current, nextAction: event.target.value }))}
+            placeholder="Acao concreta"
+            className="atlas-input"
+          />
+        </label>
+        <label className="grid gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          Risco
+          <select
+            value={draft.risk}
+            onChange={(event) => setDraft((current) => ({ ...current, risk: event.target.value as RiskLevel }))}
+            className="atlas-input"
+          >
+            <option value="low">Baixo</option>
+            <option value="med">Médio</option>
+            <option value="high">Alto</option>
+          </select>
+        </label>
+        <label className="grid gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          Status
+          <select
+            value={draft.status}
+            onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value as ProjectStatus }))}
+            className="atlas-input"
+          >
+            <option value="planejamento">Planejamento</option>
+            <option value="andamento">Em andamento</option>
+            <option value="bloqueado">Bloqueado</option>
+            <option value="concluido">Concluído</option>
+          </select>
+        </label>
+        <button type="submit" className="atlas-cta inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-xs font-bold uppercase tracking-[0.14em]">
+          <Plus className="h-4 w-4" />
+          Criar
+        </button>
+      </form>
 
       <div className="relative hidden min-h-[430px] overflow-hidden rounded-2xl border border-border bg-background/20 md:block">
         <svg className="absolute inset-0 h-full w-full opacity-60" aria-hidden>

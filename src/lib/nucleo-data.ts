@@ -264,6 +264,7 @@ export interface NucleoArchiveItem {
   title: string;
   summary?: string;
   projectId?: string;
+  snapshot?: unknown;
   archivedAt: string;
   reason?: string;
   restoredAt?: string;

@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  type Checkpoint,
+  type Evidence,
   type FocusSession,
+  type NucleoArchiveItem,
+  type NucleoBlocker,
   type FocusSessionResult,
   type NucleoHistoryEvent,
   type NucleoState,
+  type NucleoTask,
+  type Project,
+  type ProjectStatus,
+  type RiskLevel,
+  type ScopeItem,
   type TodayMission,
 } from "@/lib/nucleo-data";
 import { loadNucleoState, resetNucleoState, saveNucleoState } from "@/lib/nucleo-storage";
@@ -25,6 +34,31 @@ type FinishFocusPayload = {
 
 type TodayMissionPayload = Partial<Omit<TodayMission, "completionChecklist">>;
 
+type ProjectPayload = {
+  name: string;
+  currentState: string;
+  destination: string;
+  currentMission: string;
+  nextAction: string;
+  completionCriteria: string;
+  risk: RiskLevel;
+  status: ProjectStatus;
+  color?: Project["color"];
+};
+
+type ProjectUpdatePayload = Partial<ProjectPayload>;
+
+type ScopeItemPayload = {
+  text: string;
+  bucket: ScopeItem["bucket"];
+};
+
+type BlockerPayload = {
+  title: string;
+  detail?: string;
+  owner?: string;
+};
+
 type Listener = (state: NucleoState) => void;
 
 let cachedState: NucleoState = loadNucleoState();
@@ -32,6 +66,26 @@ const listeners = new Set<Listener>();
 
 function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeId(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 42);
+}
+
+function nextProjectCode(projects: Project[]) {
+  const next = projects.length + 1;
+  return String(next).padStart(2, "0");
+}
+
+function territoryTone(color: Project["color"]): "cyan" | "violet" | "amber" | "emerald" | "rose" {
+  if (color === "sky") return "cyan" as const;
+  return color;
 }
 
 function formatFocusDuration(seconds: number) {
@@ -84,6 +138,26 @@ function addHistory(state: NucleoState, event: Omit<NucleoHistoryEvent, "id" | "
     ...state,
     history: [createHistoryEvent(event), ...state.history].slice(0, 200),
   };
+}
+
+function addArchiveItem(state: NucleoState, item: Omit<NucleoArchiveItem, "id" | "archivedAt">) {
+  const archiveItem: NucleoArchiveItem = {
+    ...item,
+    id: createId("archive"),
+    archivedAt: new Date().toISOString(),
+  };
+
+  return addHistory({
+    ...state,
+    archiveItems: [archiveItem, ...state.archiveItems],
+  }, {
+    entityType: archiveItem.entityType,
+    entityId: archiveItem.entityId,
+    action: "archived",
+    title: archiveItem.title,
+    summary: archiveItem.reason,
+    projectId: archiveItem.projectId,
+  });
 }
 
 function recalculateState(state: NucleoState): NucleoState {
@@ -182,6 +256,551 @@ export function useNucleoState() {
   }, []);
 
   const actions = useMemo(() => ({
+    createProject(payload: ProjectPayload) {
+      const name = payload.name.trim();
+      if (!name) return "";
+
+      const idBase = normalizeId(name) || "projeto";
+      const id = cachedState.projects.some((project) => project.id === idBase) ? createId(idBase) : idBase;
+      const now = new Date().toISOString();
+      const color = payload.color ?? "cyan";
+      const project: Project = {
+        id,
+        code: nextProjectCode(cachedState.projects),
+        name,
+        emoji: "◆",
+        color,
+        status: payload.status,
+        risk: payload.risk,
+        progress: 0,
+        scopePercent: 0,
+        currentState: payload.currentState.trim() || "Projeto recém-cadastrado.",
+        destination: payload.destination.trim() || "Destino V01 a definir.",
+        currentMission: payload.currentMission.trim() || "Definir missão atual",
+        nextAction: payload.nextAction.trim() || "Definir próxima ação",
+        completionCriteria: payload.completionCriteria.trim() || "Critério de conclusão a definir.",
+        scope: [],
+        dependencies: [],
+        evidence: [],
+        alerts: [],
+        checkpoints: [],
+      };
+      const mission = {
+        id: `mission-${id}-current`,
+        projectId: id,
+        title: project.currentMission,
+        currentState: project.currentState,
+        destination: project.destination,
+        nextAction: project.nextAction,
+        completionCriteria: project.completionCriteria,
+        status: "planned" as const,
+        progress: 0,
+        order: cachedState.missions.length + 1,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      updateState((current) => addHistory({
+        ...current,
+        projects: [...current.projects, project],
+        missions: [...current.missions, mission],
+        scopeTerritories: [
+          ...current.scopeTerritories,
+          {
+            id: `territory-${id}`,
+            projectId: id,
+            name: project.name,
+            subtitle: "Novo território",
+            progress: 0,
+            status: "Em Progresso",
+            tone: territoryTone(color),
+            position: "south",
+          },
+        ],
+      }, {
+        entityType: "project",
+        entityId: id,
+        action: "created",
+        title: `Projeto criado: ${project.name}`,
+        projectId: id,
+      }));
+
+      return id;
+    },
+
+    updateProject(projectId: string, payload: ProjectUpdatePayload) {
+      updateState((current) => {
+        const project = current.projects.find((item) => item.id === projectId);
+        if (!project) return current;
+
+        const nextProject = {
+          ...project,
+          ...payload,
+          name: payload.name?.trim() || project.name,
+          currentState: payload.currentState?.trim() || project.currentState,
+          destination: payload.destination?.trim() || project.destination,
+          currentMission: payload.currentMission?.trim() || project.currentMission,
+          nextAction: payload.nextAction?.trim() || project.nextAction,
+          completionCriteria: payload.completionCriteria?.trim() || project.completionCriteria,
+        };
+
+        return addHistory({
+          ...current,
+          projects: current.projects.map((item) => (item.id === projectId ? nextProject : item)),
+          missions: current.missions.map((mission) => (
+            mission.projectId === projectId
+              ? {
+                ...mission,
+                title: nextProject.currentMission,
+                currentState: nextProject.currentState,
+                destination: nextProject.destination,
+                nextAction: nextProject.nextAction,
+                completionCriteria: nextProject.completionCriteria,
+                updatedAt: new Date().toISOString(),
+              }
+              : mission
+          )),
+          scopeTerritories: current.scopeTerritories.map((territory) => (
+            territory.projectId === projectId ? { ...territory, name: nextProject.name } : territory
+          )),
+        }, {
+          entityType: "project",
+          entityId: projectId,
+          action: "updated",
+          title: `Projeto atualizado: ${nextProject.name}`,
+          projectId,
+        });
+      });
+    },
+
+    archiveProject(projectId: string, reason = "Arquivado pelo usuário") {
+      updateState((current) => {
+        const project = current.projects.find((item) => item.id === projectId);
+        if (!project) return current;
+
+        return addArchiveItem({
+          ...current,
+          projects: current.projects.filter((item) => item.id !== projectId),
+          scopeTerritories: current.scopeTerritories.filter((territory) => territory.projectId !== projectId),
+          tasks: current.tasks.map((task) => (task.projectId === projectId ? { ...task, status: "archived" as const, archivedAt: new Date().toISOString() } : task)),
+        }, {
+          entityType: "project",
+          entityId: projectId,
+          title: project.name,
+          projectId,
+          reason,
+          snapshot: project,
+        });
+      });
+    },
+
+    createProjectCheckpoint(projectId: string, label: string) {
+      const text = label.trim();
+      if (!text) return;
+
+      updateState((current) => {
+        const project = current.projects.find((item) => item.id === projectId);
+        if (!project) return current;
+
+        const checkpointId = createId("checkpoint");
+        const checkpoint: Checkpoint = { id: checkpointId, label: text, done: false };
+        const task: NucleoTask = {
+          id: `task-${projectId}-${checkpointId}`,
+          projectId,
+          missionId: `mission-${projectId}-current`,
+          sourceType: "checkpoint",
+          sourceId: checkpointId,
+          title: text,
+          status: "ready",
+          priority: project.risk === "high" ? "high" : project.risk === "med" ? "medium" : "low",
+          scopeBucket: "v01",
+          order: project.checkpoints.length + 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        return addHistory({
+          ...current,
+          projects: current.projects.map((item) => (
+            item.id === projectId ? { ...item, checkpoints: [...item.checkpoints, checkpoint] } : item
+          )),
+          tasks: [...current.tasks, task],
+        }, {
+          entityType: "checkpoint",
+          entityId: checkpointId,
+          action: "created",
+          title: `Checkpoint criado: ${text}`,
+          projectId,
+        });
+      });
+    },
+
+    updateProjectCheckpoint(projectId: string, checkpointId: string, label: string) {
+      const text = label.trim();
+      if (!text) return;
+
+      updateState((current) => addHistory({
+        ...current,
+        projects: current.projects.map((project) => (
+          project.id === projectId
+            ? {
+              ...project,
+              checkpoints: project.checkpoints.map((checkpoint) => (
+                checkpoint.id === checkpointId ? { ...checkpoint, label: text } : checkpoint
+              )),
+            }
+            : project
+        )),
+        tasks: current.tasks.map((task) => (
+          task.projectId === projectId && task.sourceType === "checkpoint" && task.sourceId === checkpointId
+            ? { ...task, title: text, updatedAt: new Date().toISOString() }
+            : task
+        )),
+      }, {
+        entityType: "checkpoint",
+        entityId: checkpointId,
+        action: "updated",
+        title: `Checkpoint editado: ${text}`,
+        projectId,
+      }));
+    },
+
+    archiveProjectCheckpoint(projectId: string, checkpointId: string) {
+      updateState((current) => {
+        const project = current.projects.find((item) => item.id === projectId);
+        const checkpoint = project?.checkpoints.find((item) => item.id === checkpointId);
+        if (!project || !checkpoint) return current;
+
+        return addArchiveItem({
+          ...current,
+          projects: current.projects.map((item) => (
+            item.id === projectId
+              ? { ...item, checkpoints: item.checkpoints.filter((entry) => entry.id !== checkpointId) }
+              : item
+          )),
+          tasks: current.tasks.map((task) => (
+            task.projectId === projectId && task.sourceId === checkpointId
+              ? { ...task, status: "archived" as const, archivedAt: new Date().toISOString() }
+              : task
+          )),
+        }, {
+          entityType: "checkpoint",
+          entityId: checkpointId,
+          title: checkpoint.label,
+          projectId,
+          reason: "Checkpoint arquivado",
+          snapshot: checkpoint,
+        });
+      });
+    },
+
+    createScopeItem(projectId: string, payload: ScopeItemPayload) {
+      const text = payload.text.trim();
+      if (!text) return;
+
+      updateState((current) => {
+        const scopeItem: ScopeItem = { id: createId("scope"), text, bucket: payload.bucket };
+
+        return addHistory({
+          ...current,
+          projects: current.projects.map((project) => (
+            project.id === projectId ? { ...project, scope: [...project.scope, scopeItem] } : project
+          )),
+        }, {
+          entityType: "scopeItem",
+          entityId: scopeItem.id,
+          action: "created",
+          title: `Item de escopo criado: ${text}`,
+          projectId,
+        });
+      });
+    },
+
+    updateScopeItem(projectId: string, scopeItemId: string, text: string) {
+      const cleanText = text.trim();
+      if (!cleanText) return;
+
+      updateState((current) => addHistory({
+        ...current,
+        projects: current.projects.map((project) => (
+          project.id === projectId
+            ? {
+              ...project,
+              scope: project.scope.map((item) => (item.id === scopeItemId ? { ...item, text: cleanText } : item)),
+            }
+            : project
+        )),
+      }, {
+        entityType: "scopeItem",
+        entityId: scopeItemId,
+        action: "updated",
+        title: `Escopo editado: ${cleanText}`,
+        projectId,
+      }));
+    },
+
+    moveScopeItem(projectId: string, scopeItemId: string, bucket: ScopeItem["bucket"]) {
+      updateState((current) => {
+        const project = current.projects.find((item) => item.id === projectId);
+        const scopeItem = project?.scope.find((item) => item.id === scopeItemId);
+        if (!project || !scopeItem || scopeItem.bucket === bucket) return current;
+
+        const movedToV02 = bucket === "v02" && scopeItem.bucket !== "v02";
+        let updated = {
+          ...current,
+          projects: current.projects.map((item) => (
+            item.id === projectId
+              ? { ...item, scope: item.scope.map((scope) => (scope.id === scopeItemId ? { ...scope, bucket } : scope)) }
+              : item
+          )),
+        };
+
+        if (movedToV02) updated = addXP(updated, 25);
+
+        return addHistory(updated, {
+          entityType: "scopeItem",
+          entityId: scopeItemId,
+          action: "moved",
+          title: `Escopo movido: ${scopeItem.text}`,
+          summary: `Destino: ${bucket.toUpperCase()}`,
+          projectId,
+        });
+      });
+    },
+
+    archiveScopeItem(projectId: string, scopeItemId: string) {
+      updateState((current) => {
+        const project = current.projects.find((item) => item.id === projectId);
+        const scopeItem = project?.scope.find((item) => item.id === scopeItemId);
+        if (!project || !scopeItem) return current;
+
+        return addArchiveItem({
+          ...current,
+          projects: current.projects.map((item) => (
+            item.id === projectId ? { ...item, scope: item.scope.filter((scope) => scope.id !== scopeItemId) } : item
+          )),
+        }, {
+          entityType: "scopeItem",
+          entityId: scopeItemId,
+          title: scopeItem.text,
+          projectId,
+          reason: "Item de escopo arquivado",
+          snapshot: scopeItem,
+        });
+      });
+    },
+
+    archiveProjectEvidence(projectId: string, evidenceId: string) {
+      updateState((current) => {
+        const project = current.projects.find((item) => item.id === projectId);
+        const evidence = project?.evidence.find((item) => item.id === evidenceId);
+        if (!project || !evidence) return current;
+
+        return addArchiveItem({
+          ...current,
+          projects: current.projects.map((item) => (
+            item.id === projectId
+              ? { ...item, evidence: item.evidence.filter((entry) => entry.id !== evidenceId) }
+              : item
+          )),
+        }, {
+          entityType: "evidence",
+          entityId: evidenceId,
+          title: evidence.label,
+          projectId,
+          reason: "Evidência arquivada",
+          snapshot: evidence,
+        });
+      });
+    },
+
+    createProjectBlocker(projectId: string, payload: BlockerPayload) {
+      const title = payload.title.trim();
+      if (!title) return;
+
+      updateState((current) => {
+        const blocker: NucleoBlocker = {
+          id: createId("blocker"),
+          projectId,
+          title,
+          detail: payload.detail?.trim() || undefined,
+          owner: payload.owner?.trim() || undefined,
+          status: "open",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        return addHistory({
+          ...current,
+          blockers: [blocker, ...current.blockers],
+        }, {
+          entityType: "blocker",
+          entityId: blocker.id,
+          action: "created",
+          title: `Bloqueio criado: ${title}`,
+          projectId,
+        });
+      });
+    },
+
+    resolveProjectBlocker(blockerId: string) {
+      updateState((current) => {
+        const blocker = current.blockers.find((item) => item.id === blockerId);
+        if (!blocker) return current;
+
+        return addHistory({
+          ...current,
+          blockers: current.blockers.map((item) => (
+            item.id === blockerId
+              ? { ...item, status: "resolved" as const, resolvedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+              : item
+          )),
+        }, {
+          entityType: "blocker",
+          entityId: blockerId,
+          action: "completed",
+          title: `Bloqueio resolvido: ${blocker.title}`,
+          projectId: blocker.projectId,
+        });
+      });
+    },
+
+    archiveProjectBlocker(blockerId: string) {
+      updateState((current) => {
+        const blocker = current.blockers.find((item) => item.id === blockerId);
+        if (!blocker) return current;
+
+        return addArchiveItem({
+          ...current,
+          blockers: current.blockers.map((item) => (
+            item.id === blockerId
+              ? { ...item, status: "archived" as const, archivedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+              : item
+          )),
+        }, {
+          entityType: "blocker",
+          entityId: blockerId,
+          title: blocker.title,
+          projectId: blocker.projectId,
+          reason: "Bloqueio arquivado",
+          snapshot: blocker,
+        });
+      });
+    },
+
+    restoreArchiveItem(archiveId: string) {
+      updateState((current) => {
+        const archiveItem = current.archiveItems.find((item) => item.id === archiveId);
+        if (!archiveItem || archiveItem.restoredAt) return current;
+
+        let restored: NucleoState = {
+          ...current,
+          archiveItems: current.archiveItems.map((item) => (
+            item.id === archiveId ? { ...item, restoredAt: new Date().toISOString() } : item
+          )),
+        };
+
+        if (archiveItem.entityType === "project" && archiveItem.snapshot) {
+          const project = archiveItem.snapshot as Project;
+          if (!restored.projects.some((item) => item.id === project.id)) {
+            restored = {
+              ...restored,
+              projects: [...restored.projects, project],
+              scopeTerritories: [
+                ...restored.scopeTerritories,
+                {
+                  id: `territory-${project.id}`,
+                  projectId: project.id,
+                  name: project.name,
+                  subtitle: "Restaurado do arquivo",
+                  progress: project.progress,
+                  status: "Em Progresso",
+                  tone: territoryTone(project.color),
+                  position: "south",
+                },
+              ],
+            };
+          }
+        }
+
+        if (archiveItem.entityType === "checkpoint" && archiveItem.projectId && archiveItem.snapshot) {
+          const checkpoint = archiveItem.snapshot as Checkpoint;
+          restored = {
+            ...restored,
+            projects: restored.projects.map((project) => (
+              project.id === archiveItem.projectId && !project.checkpoints.some((item) => item.id === checkpoint.id)
+                ? { ...project, checkpoints: [...project.checkpoints, checkpoint] }
+                : project
+            )),
+          };
+        }
+
+        if (archiveItem.entityType === "scopeItem" && archiveItem.projectId && archiveItem.snapshot) {
+          const scopeItem = archiveItem.snapshot as ScopeItem;
+          restored = {
+            ...restored,
+            projects: restored.projects.map((project) => (
+              project.id === archiveItem.projectId && !project.scope.some((item) => item.id === scopeItem.id)
+                ? { ...project, scope: [...project.scope, scopeItem] }
+                : project
+            )),
+          };
+        }
+
+        if (archiveItem.entityType === "evidence" && archiveItem.projectId && archiveItem.snapshot) {
+          const evidence = archiveItem.snapshot as Evidence;
+          restored = {
+            ...restored,
+            projects: restored.projects.map((project) => (
+              project.id === archiveItem.projectId && !project.evidence.some((item) => item.id === evidence.id)
+                ? { ...project, evidence: [evidence, ...project.evidence] }
+                : project
+            )),
+          };
+        }
+
+        if (archiveItem.entityType === "blocker" && archiveItem.projectId && archiveItem.snapshot) {
+          const blocker = archiveItem.snapshot as NucleoBlocker;
+          restored = {
+            ...restored,
+            blockers: restored.blockers.some((item) => item.id === blocker.id)
+              ? restored.blockers.map((item) => (
+                item.id === blocker.id
+                  ? { ...blocker, status: blocker.status === "archived" ? "open" : blocker.status, archivedAt: undefined, updatedAt: new Date().toISOString() }
+                  : item
+              ))
+              : [{ ...blocker, archivedAt: undefined, updatedAt: new Date().toISOString() }, ...restored.blockers],
+          };
+        }
+
+        return addHistory(restored, {
+          entityType: archiveItem.entityType,
+          entityId: archiveItem.entityId,
+          action: "restored",
+          title: `Restaurado: ${archiveItem.title}`,
+          projectId: archiveItem.projectId,
+        });
+      });
+    },
+
+    deleteArchiveItem(archiveId: string) {
+      updateState((current) => {
+        const archiveItem = current.archiveItems.find((item) => item.id === archiveId);
+        if (!archiveItem) return current;
+
+        return addHistory({
+          ...current,
+          archiveItems: current.archiveItems.filter((item) => item.id !== archiveId),
+        }, {
+          entityType: archiveItem.entityType,
+          entityId: archiveItem.entityId,
+          action: "deleted",
+          title: `Excluído definitivamente: ${archiveItem.title}`,
+          projectId: archiveItem.projectId,
+        });
+      });
+    },
+
     startFocusSession() {
       updateState((current) => {
         if (getActiveSession(current)) return current;

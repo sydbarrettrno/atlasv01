@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Archive, CheckCircle2, Clock, RotateCcw, Trash2 } from "lucide-react";
 import { Shell } from "@/components/nucleo/Shell";
 import { useNucleoState } from "@/hooks/useNucleoState";
 import type { NucleoEntityAction } from "@/lib/nucleo-data";
-import { Archive, CheckCircle2, Clock, RotateCcw } from "lucide-react";
 
 export const Route = createFileRoute("/arquivo")({
   head: () => ({ meta: [{ title: "Arquivo · Núcleo" }] }),
@@ -26,9 +26,16 @@ const actionLabel: Record<NucleoEntityAction, string> = {
 };
 
 function ArchivePage() {
-  const { state } = useNucleoState();
+  const { state, actions } = useNucleoState();
   const archiveItems = state.archiveItems.filter((item) => !item.restoredAt);
   const history = state.history.slice(0, 20);
+
+  function deleteArchiveItem(archiveId: string, title: string) {
+    const confirmed = window.confirm(`Remover definitivamente "${title}" do arquivo?`);
+    if (!confirmed) return;
+
+    actions.deleteArchiveItem(archiveId);
+  }
 
   return (
     <Shell>
@@ -49,23 +56,44 @@ function ArchivePage() {
           <Metric label="Vitórias" value={state.victories.length} tone="emerald" />
         </section>
 
-        {archiveItems.length > 0 && (
-          <section className="rounded-2xl border border-border bg-surface/60">
-            <header className="flex items-center gap-2 border-b border-border px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--amber)]">
-              <RotateCcw className="h-4 w-4" /> Itens arquivados
-            </header>
-            <div className="divide-y divide-border px-4">
-              {archiveItems.map((item) => (
-                <div key={item.id} className="py-3">
+        <section className="rounded-2xl border border-border bg-surface/60">
+          <header className="flex items-center gap-2 border-b border-border px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--amber)]">
+            <RotateCcw className="h-4 w-4" /> Itens arquivados
+          </header>
+          <div className="divide-y divide-border px-4">
+            {archiveItems.length === 0 && (
+              <div className="py-4 text-sm text-muted-foreground">Nenhum item arquivado agora.</div>
+            )}
+            {archiveItems.map((item) => (
+              <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
                   <div className="text-sm font-semibold">{item.title}</div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     {item.entityType} · {formatDate(item.archivedAt)}{item.reason ? ` · ${item.reason}` : ""}
                   </div>
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => actions.restoreArchiveItem(item.id)}
+                    className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-[color:var(--emerald)]/35 bg-[color:color-mix(in_oklab,var(--emerald)_10%,transparent)] px-3 text-xs font-bold text-[color:var(--emerald)]"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Restaurar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteArchiveItem(item.id, item.title)}
+                    className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-[color:var(--rose)]/35 bg-[color:color-mix(in_oklab,var(--rose)_10%,transparent)] px-3 text-xs font-bold text-[color:var(--rose)]"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remover
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
 
         <section className="relative pl-6">
           <div className="absolute bottom-2 left-2 top-2 w-px bg-border" />
