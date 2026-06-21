@@ -62,6 +62,82 @@ export interface Victory {
   when: string;
 }
 
+export interface DashboardStats {
+  focusStreak: number;
+  xpCurrent: number;
+  xpTotal: number;
+  level: number;
+  checkpointsDone: number;
+  checkpointsTotal: number;
+  portalV02: number;
+}
+
+export interface TodayMission {
+  sectionTitle: string;
+  mission: string;
+  projectTag: string;
+  nextAction: string;
+  cta: string;
+  suggestedTime: string;
+  progress: number;
+  completionChecklist: string[];
+  deliveryDate: string;
+}
+
+export interface MissionJourneyStep {
+  id: string;
+  label: string;
+  state: "done" | "active" | "blocked";
+}
+
+export interface ScopeTerritory {
+  id: string;
+  projectId?: string;
+  name: string;
+  subtitle: string;
+  progress: number;
+  status: "No Trilho" | "Em Progresso" | "Atenção" | "Bloqueado" | "Concluído";
+  tone: "cyan" | "violet" | "amber" | "emerald" | "rose";
+  position: "north" | "east" | "south" | "west" | "center";
+}
+
+export interface BossItem {
+  id: string;
+  title: string;
+  detail: string;
+  due: string;
+  priority: "Alta" | "Média";
+}
+
+export interface RiskRadar {
+  headline: string;
+  items: string[];
+}
+
+export interface MentalEnergy {
+  value: number;
+  status: string;
+  note: string;
+  trend: number[];
+}
+
+export interface FocusToday {
+  duration: string;
+  cta: string;
+  route: string;
+}
+
+export interface OperationalCards {
+  doNotToday: string[];
+  waitingThirdParties: Array<{ id: string; source: string; topic: string; days: string }>;
+  deliveryV01: {
+    title: string;
+    due: string;
+    progress: string;
+  };
+  recentVictories: Victory[];
+}
+
 export const owner = {
   name: "Anibal",
   mode: "Modo Foco Ativo",
@@ -72,6 +148,164 @@ export const owner = {
   xpNextLevel: 5000,
   level: 14,
   energy: 78,
+};
+
+export const dashboardStats: DashboardStats = {
+  focusStreak: 14,
+  xpCurrent: 3420,
+  xpTotal: 5000,
+  level: 24,
+  checkpointsDone: 7,
+  checkpointsTotal: 10,
+  portalV02: 62,
+};
+
+export const todayMission: TodayMission = {
+  sectionTitle: "Missão Principal do Dia",
+  mission: "Revisar versão V01 do Relatório de Impacto Regulatório",
+  projectTag: "Projeto: Parecer Técnico SEPLAN",
+  nextAction: "Abrir a última versão e revisar seção 3.2 - Análise de Impacto",
+  cta: "Iniciar Agora",
+  suggestedTime: "90 min",
+  progress: 48,
+  completionChecklist: [
+    "Seção 3.2 revisada",
+    "Análise alinhada com jurídico",
+    "Referências validadas",
+    "Versão enviada ao orientador",
+  ],
+  deliveryDate: "21 JUN 2026",
+};
+
+export const missionJourney: MissionJourneyStep[] = [
+  { id: "received", label: "Recebido", state: "done" },
+  { id: "analysis", label: "Análise Inicial", state: "done" },
+  { id: "review", label: "Revisão & Ajustes", state: "active" },
+  { id: "legal", label: "Validação Jurídica", state: "blocked" },
+  { id: "approval", label: "Aprovação Final", state: "blocked" },
+  { id: "archive", label: "Entrega & Arquivo", state: "blocked" },
+];
+
+export const scopeTerritories: ScopeTerritory[] = [
+  {
+    id: "seplan-parecer",
+    projectId: "seplan-ia",
+    name: "SEPLAN IA",
+    subtitle: "Parecer Técnico",
+    progress: 72,
+    status: "No Trilho",
+    tone: "cyan",
+    position: "center",
+  },
+  {
+    id: "agenda-rotina",
+    projectId: "agenda-tdah",
+    name: "Agenda TDAH",
+    subtitle: "Rotina e Organização",
+    progress: 48,
+    status: "Em Progresso",
+    tone: "violet",
+    position: "west",
+  },
+  {
+    id: "docs-oficiais",
+    projectId: "docs-seplan",
+    name: "Documentos Oficiais",
+    subtitle: "Padronização",
+    progress: 70,
+    status: "No Trilho",
+    tone: "amber",
+    position: "north",
+  },
+  {
+    id: "bases-dados",
+    projectId: "bases-dashboards",
+    name: "Bases & Dashboards",
+    subtitle: "Dados Estratégicos",
+    progress: 55,
+    status: "Atenção",
+    tone: "emerald",
+    position: "east",
+  },
+  {
+    id: "portal-v02",
+    projectId: "seplan-ia",
+    name: "Portal V02",
+    subtitle: "Integração & Entrega",
+    progress: 62,
+    status: "Em Progresso",
+    tone: "violet",
+    position: "south",
+  },
+];
+
+export const bossItems: BossItem[] = [
+  {
+    id: "oficio-0241",
+    title: "Ofício 0241/2026",
+    detail: "PAV. Beira Mar 3",
+    due: "Hoje 16:00",
+    priority: "Alta",
+  },
+  {
+    id: "rir",
+    title: "Relatório de Impacto Regulatório",
+    detail: "Revisão V01",
+    due: "Amanhã 09:00",
+    priority: "Alta",
+  },
+  {
+    id: "manuais",
+    title: "Atualização de Manuais Operacionais",
+    detail: "Padronização interna",
+    due: "23/06/2026",
+    priority: "Média",
+  },
+];
+
+export const riskRadar: RiskRadar = {
+  headline: "Radar de Risco",
+  items: [
+    "2 prazos críticos nas próximas 24h",
+    "1 entrega sem responsável definido",
+    "3 projetos com risco de atraso",
+  ],
+};
+
+export const mentalEnergy: MentalEnergy = {
+  value: 78,
+  status: "Alta",
+  note: "Excelente para foco profundo. Melhor horário: 09:00 - 11:30.",
+  trend: [48, 56, 62, 70, 78, 74, 82],
+};
+
+export const focusToday: FocusToday = {
+  duration: "3h30m",
+  cta: "Iniciar Modo Foco",
+  route: "/foco",
+};
+
+export const operationalCards: OperationalCards = {
+  doNotToday: [
+    "Não ajustar detalhes visuais",
+    "Não iniciar integrações externas",
+    "Não responder e-mails não urgentes",
+    "Não criar novas automações",
+  ],
+  waitingThirdParties: [
+    { id: "afc", source: "Dados da AFC", topic: "Auditoria Fiscal", days: "1 dia" },
+    { id: "juridico", source: "Parecer Jurídico", topic: "SEPLAN Ofício", days: "3 dias" },
+  ],
+  deliveryV01: {
+    title: "Relatório de Impacto Regulatório",
+    due: "Entrega até 21 JUN 2026",
+    progress: "2 de 5 entregáveis concluídos",
+  },
+  recentVictories: [
+    { id: "secao-21", text: "Seção 2.1 concluída", when: "Hoje" },
+    { id: "refs", text: "Referências atualizadas", when: "Ontem" },
+    { id: "juridico", text: "Reunião com jurídico realizada", when: "Ontem" },
+  ],
 };
 
 export const projects: Project[] = [

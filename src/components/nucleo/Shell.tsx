@@ -12,7 +12,7 @@ import {
   Zap,
   Layers,
 } from "lucide-react";
-import { owner } from "@/lib/nucleo-data";
+import { dashboardStats, focusToday, owner } from "@/lib/nucleo-data";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
@@ -36,20 +36,20 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-[1720px] gap-5 px-4 py-3 lg:px-6 lg:py-4">
         {/* Sidebar */}
-        <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-60 shrink-0 flex-col rounded-2xl glass shadow-[var(--shadow-elevated)] lg:flex">
+        <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-56 shrink-0 flex-col rounded-2xl glass shadow-[var(--shadow-elevated)] lg:flex xl:w-60">
           <div className="flex items-center gap-3 border-b border-border px-5 py-5">
-            <div className="relative grid h-10 w-10 place-items-center rounded-xl" style={{ background: "var(--gradient-primary)" }}>
+            <div className="relative grid h-10 w-10 place-items-center rounded-xl atlas-glow-blue" style={{ background: "var(--gradient-primary)" }}>
               <Sparkles className="h-5 w-5 text-primary-foreground" />
               <div className="absolute inset-0 rounded-xl animate-pulse-ring" />
             </div>
             <div className="min-w-0">
-              <div className="font-display text-sm font-bold leading-tight tracking-wider">NÚCLEO</div>
-              <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">de Projetos</div>
+              <div className="font-display text-sm font-bold leading-tight tracking-[0.18em]">ATLASV01</div>
+              <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-[color:var(--cyan)]">Foco • Clareza • Execução</div>
             </div>
           </div>
 
           {/* Profile */}
-          <div className="mx-4 mt-4 rounded-xl border border-border bg-surface/60 p-3">
+          <div className="mx-4 mt-4 rounded-xl border border-[color:var(--cyan)]/25 bg-surface/60 p-3 shadow-[inset_0_1px_0_oklch(1_0_0_/_0.05)]">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-full font-display text-sm font-bold text-primary-foreground" style={{ background: "var(--gradient-primary)" }}>
                 A
@@ -60,6 +60,18 @@ export function Shell({ children }: { children: ReactNode }) {
                   <span className="h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_8px_currentColor]" />
                   {owner.mode}
                 </div>
+              </div>
+            </div>
+            <div className="mt-3 rounded-lg border border-border bg-background/30 p-2">
+              <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                <span>Nível {dashboardStats.level}</span>
+                <span>{dashboardStats.xpCurrent.toLocaleString("pt-BR")} XP</span>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-3">
+                <div
+                  className="h-full rounded-full bg-[linear-gradient(90deg,var(--cyan),var(--violet),var(--amber))] shadow-[0_0_12px_var(--cyan)]"
+                  style={{ width: `${(dashboardStats.xpCurrent / dashboardStats.xpTotal) * 100}%` }}
+                />
               </div>
             </div>
           </div>
@@ -113,14 +125,23 @@ export function Shell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-t border-border px-5 py-4">
-            <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground">
-              <Settings className="h-4 w-4" />
-              Configurações
-            </button>
-            <button className="text-muted-foreground hover:text-foreground">
-              <Moon className="h-4 w-4" />
-            </button>
+          <div className="border-t border-border px-4 py-4">
+            <Link
+              to="/foco"
+              className="atlas-cta mb-3 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold uppercase tracking-[0.14em]"
+            >
+              <Target className="h-4 w-4" />
+              {focusToday.cta}
+            </Link>
+            <div className="flex items-center justify-between">
+              <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground">
+                <Settings className="h-4 w-4" />
+                Configurações
+              </button>
+              <button className="text-muted-foreground hover:text-foreground">
+                <Moon className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </aside>
 
@@ -132,7 +153,10 @@ export function Shell({ children }: { children: ReactNode }) {
               <div className="grid h-8 w-8 place-items-center rounded-lg" style={{ background: "var(--gradient-primary)" }}>
                 <Sparkles className="h-4 w-4 text-primary-foreground" />
               </div>
-              <div className="font-display text-sm font-bold tracking-wider">NÚCLEO</div>
+              <div>
+                <div className="font-display text-sm font-bold tracking-[0.18em]">ATLASV01</div>
+                <div className="text-[9px] uppercase tracking-[0.14em] text-[color:var(--cyan)]">Foco • Clareza • Execução</div>
+              </div>
             </div>
             <MobileNav pathname={pathname} />
           </div>
