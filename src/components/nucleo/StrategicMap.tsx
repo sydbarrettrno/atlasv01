@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertTriangle,
+  Archive,
   ArrowRight,
   Ban,
   BatteryCharging,
@@ -14,6 +15,7 @@ import {
   Layers,
   Lock,
   MapPin,
+  Pencil,
   Plus,
   Radar,
   Settings,
@@ -33,7 +35,7 @@ import {
   type RiskLevel,
   type ScopeTerritory,
 } from "@/lib/nucleo-data";
-import { Shell } from "./Shell";
+import { Shell, useCommandCenterControls } from "./Shell";
 import { useState, type FormEvent, type ReactNode } from "react";
 
 const toneColor: Record<ScopeTerritory["tone"], string> = {
@@ -93,6 +95,7 @@ export function StrategicMapView() {
 
 function GamifiedTopbar() {
   const { state } = useNucleoState();
+  const { openAlertsPanel, openCommandCenter } = useCommandCenterControls();
   const { dashboardStats } = state;
 
   return (
@@ -116,10 +119,22 @@ function GamifiedTopbar() {
         <StatPill icon={<Trophy className="h-4 w-4" />} label="Checkpoints" value={`${dashboardStats.checkpointsDone} / ${dashboardStats.checkpointsTotal}`} tone="emerald" />
         <StatPill icon={<Layers className="h-4 w-4" />} label="Portal V02" value={`${dashboardStats.portalV02}%`} tone="violet" />
         <div className="ml-1 flex items-center gap-1">
-          <button className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-surface/70 text-muted-foreground transition hover:text-foreground" aria-label="Notificações">
+          <button
+            type="button"
+            onClick={openAlertsPanel}
+            className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-surface/70 text-muted-foreground transition hover:text-foreground"
+            aria-label="Notificações"
+            title="Notificações"
+          >
             <Bell className="h-4 w-4" />
           </button>
-          <button className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-surface/70 text-muted-foreground transition hover:text-foreground" aria-label="Configurações">
+          <button
+            type="button"
+            onClick={() => openCommandCenter(undefined, "project")}
+            className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-surface/70 text-muted-foreground transition hover:text-foreground"
+            aria-label="Configurações"
+            title="Configurações"
+          >
             <Settings className="h-4 w-4" />
           </button>
         </div>
@@ -534,6 +549,8 @@ function TerritoryNode({ territory }: { territory: ScopeTerritory }) {
 }
 
 function TerritoryCard({ territory }: { territory: ScopeTerritory }) {
+  const { actions } = useNucleoState();
+  const { openCommandCenter } = useCommandCenterControls();
   const color = toneColor[territory.tone];
   const content = (
     <>
@@ -567,18 +584,55 @@ function TerritoryCard({ territory }: { territory: ScopeTerritory }) {
     boxShadow: `0 0 0 1px color-mix(in oklab, ${color} 16%, transparent), 0 20px 40px -24px ${color}`,
   };
 
-  if (territory.projectId) {
-    return (
-      <Link to="/projeto/$id" params={{ id: territory.projectId }} className={className} style={style}>
-        {content}
-      </Link>
-    );
+  function archiveTerritoryProject() {
+    if (!territory.projectId) return;
+
+    const confirmed = window.confirm(`Arquivar o projeto "${territory.name}"? Ele podera ser restaurado no Arquivo.`);
+    if (!confirmed) return;
+
+    actions.archiveProject(territory.projectId);
   }
 
   return (
-    <div className={className} style={style}>
+    <article className={className} style={style}>
       {content}
-    </div>
+      {territory.projectId && (
+        <div className="relative mt-4 grid grid-cols-2 gap-2">
+          <Link
+            to="/projeto/$id"
+            params={{ id: territory.projectId }}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[color:var(--cyan)]/30 bg-background/25 px-2 text-[11px] font-bold text-[color:var(--cyan)] transition hover:bg-[color:color-mix(in_oklab,var(--cyan)_10%,transparent)]"
+          >
+            <ArrowRight className="h-3.5 w-3.5" />
+            Abrir
+          </Link>
+          <button
+            type="button"
+            onClick={() => openCommandCenter(territory.projectId, "task")}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[color:var(--emerald)]/30 bg-background/25 px-2 text-[11px] font-bold text-[color:var(--emerald)] transition hover:bg-[color:color-mix(in_oklab,var(--emerald)_10%,transparent)]"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Atividade
+          </button>
+          <button
+            type="button"
+            onClick={() => openCommandCenter(territory.projectId, "project")}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[color:var(--violet)]/30 bg-background/25 px-2 text-[11px] font-bold text-[color:var(--violet)] transition hover:bg-[color:color-mix(in_oklab,var(--violet)_10%,transparent)]"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Editar
+          </button>
+          <button
+            type="button"
+            onClick={archiveTerritoryProject}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[color:var(--rose)]/30 bg-background/25 px-2 text-[11px] font-bold text-[color:var(--rose)] transition hover:bg-[color:color-mix(in_oklab,var(--rose)_10%,transparent)]"
+          >
+            <Archive className="h-3.5 w-3.5" />
+            Arquivar
+          </button>
+        </div>
+      )}
+    </article>
   );
 }
 

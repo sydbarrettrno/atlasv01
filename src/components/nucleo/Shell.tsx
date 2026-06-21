@@ -13,6 +13,8 @@ import {
   Layers,
   ListChecks,
 } from "lucide-react";
+import { createContext, useContext, useMemo, useState } from "react";
+import { AlertsPanel, CommandCenter, type CommandCenterSection } from "@/components/nucleo/CommandCenter";
 import { useNucleoState } from "@/hooks/useNucleoState";
 import { owner } from "@/lib/nucleo-data";
 import { cn } from "@/lib/utils";
@@ -28,13 +30,38 @@ const navItems = [
   { to: "/arquivo", label: "Arquivo", icon: Archive },
 ];
 
+type CommandCenterControls = {
+  openCommandCenter: (projectId?: string, section?: CommandCenterSection) => void;
+  openAlertsPanel: () => void;
+};
+
+const CommandCenterContext = createContext<CommandCenterControls>({
+  openCommandCenter: () => undefined,
+  openAlertsPanel: () => undefined,
+});
+
+export function useCommandCenterControls() {
+  return useContext(CommandCenterContext);
+}
+
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { state } = useNucleoState();
   const { dashboardStats, focusToday, todayMission } = state;
   const xpPercent = Math.min(100, Math.round((dashboardStats.xpCurrent / dashboardStats.xpTotal) * 100));
+  const [commandCenterState, setCommandCenterState] = useState<{
+    open: boolean;
+    projectId?: string;
+    section: CommandCenterSection;
+  }>({ open: false, section: "project" });
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const controls = useMemo<CommandCenterControls>(() => ({
+    openCommandCenter: (projectId, section = "project") => setCommandCenterState({ open: true, projectId, section }),
+    openAlertsPanel: () => setAlertsOpen(true),
+  }), []);
 
   return (
+    <CommandCenterContext.Provider value={controls}>
     <div className="relative min-h-screen text-foreground">
       {/* ambient backdrop */}
       <div className="pointer-events-none fixed inset-0 bg-grid opacity-[0.07]" aria-hidden />
@@ -140,11 +167,21 @@ export function Shell({ children }: { children: ReactNode }) {
               {focusToday.cta}
             </Link>
             <div className="flex items-center justify-between">
-              <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground">
+              <button
+                type="button"
+                onClick={() => controls.openCommandCenter(undefined, "project")}
+                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
+              >
                 <Settings className="h-4 w-4" />
                 Configurações
               </button>
-              <button className="text-muted-foreground hover:text-foreground">
+              <button
+                type="button"
+                onClick={() => controls.openCommandCenter(undefined, "system")}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Sistema local"
+                title="Sistema local"
+              >
                 <Moon className="h-4 w-4" />
               </button>
             </div>
@@ -169,7 +206,15 @@ export function Shell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+      <CommandCenter
+        open={commandCenterState.open}
+        requestedProjectId={commandCenterState.projectId}
+        requestedSection={commandCenterState.section}
+        onClose={() => setCommandCenterState((current) => ({ ...current, open: false }))}
+      />
+      <AlertsPanel open={alertsOpen} onClose={() => setAlertsOpen(false)} />
     </div>
+    </CommandCenterContext.Provider>
   );
 }
 
