@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shell } from "@/components/nucleo/Shell";
-import { projects } from "@/lib/nucleo-data";
+import { useNucleoState } from "@/hooks/useNucleoState";
 import { Layers, ArrowRight } from "lucide-react";
 
 export const Route = createFileRoute("/v02")({
@@ -9,7 +9,8 @@ export const Route = createFileRoute("/v02")({
 });
 
 function V02() {
-  const all = projects.flatMap((p) =>
+  const { state } = useNucleoState();
+  const all = state.projects.flatMap((p) =>
     p.scope.filter((s) => s.bucket === "v02").map((s) => ({ ...s, project: p })),
   );
   return (

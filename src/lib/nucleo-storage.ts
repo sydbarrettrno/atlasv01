@@ -1,5 +1,6 @@
 import {
   createDefaultNucleoState,
+  NUCLEO_SCHEMA_VERSION,
   type NucleoState,
 } from "@/lib/nucleo-data";
 import { calculateDashboardStats, calculateMissionProgress } from "@/lib/nucleo-rules";
@@ -34,6 +35,7 @@ export function migrateNucleoStateIfNeeded(state: unknown): NucleoState {
   const merged: NucleoState = {
     ...defaults,
     ...candidate,
+    schemaVersion: NUCLEO_SCHEMA_VERSION,
     dashboardStats: {
       ...defaults.dashboardStats,
       ...(candidate.dashboardStats ?? {}),
@@ -58,6 +60,15 @@ export function migrateNucleoStateIfNeeded(state: unknown): NucleoState {
         })
         : clone(defaults.todayMission.completionChecklist),
     },
+    missions: Array.isArray(candidate.missions)
+      ? candidate.missions
+      : clone(defaults.missions),
+    tasks: Array.isArray(candidate.tasks)
+      ? candidate.tasks
+      : clone(defaults.tasks),
+    blockers: Array.isArray(candidate.blockers)
+      ? candidate.blockers
+      : clone(defaults.blockers),
     missionJourney: Array.isArray(candidate.missionJourney)
       ? candidate.missionJourney
       : clone(defaults.missionJourney),
@@ -110,6 +121,8 @@ export function migrateNucleoStateIfNeeded(state: unknown): NucleoState {
     focusSessions: Array.isArray(candidate.focusSessions) ? candidate.focusSessions : [],
     victories: Array.isArray(candidate.victories) ? candidate.victories : clone(defaults.victories),
     antiDriftLog: Array.isArray(candidate.antiDriftLog) ? candidate.antiDriftLog : [],
+    archiveItems: Array.isArray(candidate.archiveItems) ? candidate.archiveItems : clone(defaults.archiveItems),
+    history: Array.isArray(candidate.history) ? candidate.history : clone(defaults.history),
     alerts: Array.isArray(candidate.alerts) ? candidate.alerts : [],
     lastUpdatedAt: typeof candidate.lastUpdatedAt === "string" ? candidate.lastUpdatedAt : defaults.lastUpdatedAt,
   };

@@ -1,5 +1,6 @@
 export type RiskLevel = "low" | "med" | "high";
 export type ProjectStatus = "andamento" | "planejamento" | "bloqueado" | "concluido";
+export const NUCLEO_SCHEMA_VERSION = 2;
 
 export interface Checkpoint {
   id: string;
@@ -175,6 +176,110 @@ export interface FocusSession {
   xpEarned: number;
 }
 
+export type NucleoEntityType =
+  | "project"
+  | "mission"
+  | "task"
+  | "checkpoint"
+  | "scopeItem"
+  | "evidence"
+  | "blocker"
+  | "victory"
+  | "focusSession"
+  | "antiDrift";
+
+export type NucleoEntityAction =
+  | "created"
+  | "updated"
+  | "completed"
+  | "reopened"
+  | "moved"
+  | "archived"
+  | "restored"
+  | "deleted"
+  | "evidence_added"
+  | "focus_started"
+  | "focus_completed"
+  | "drift_avoided"
+  | "drift_violated";
+
+export type MissionStatus = "planned" | "active" | "completed" | "archived";
+export type TaskStatus = "backlog" | "ready" | "in_focus" | "blocked" | "done" | "archived";
+export type BlockerStatus = "open" | "waiting" | "resolved" | "archived";
+export type TaskPriority = "low" | "medium" | "high";
+
+export interface NucleoMission {
+  id: string;
+  projectId: string;
+  title: string;
+  currentState: string;
+  destination: string;
+  nextAction: string;
+  completionCriteria: string;
+  status: MissionStatus;
+  progress: number;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  archivedAt?: string;
+}
+
+export interface NucleoTask {
+  id: string;
+  projectId: string;
+  missionId?: string;
+  sourceType: "checkpoint" | "scope" | "manual" | "focus";
+  sourceId?: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  scopeBucket?: ScopeItem["bucket"];
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  archivedAt?: string;
+}
+
+export interface NucleoBlocker {
+  id: string;
+  projectId: string;
+  taskId?: string;
+  title: string;
+  detail?: string;
+  owner?: string;
+  status: BlockerStatus;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
+  archivedAt?: string;
+}
+
+export interface NucleoArchiveItem {
+  id: string;
+  entityType: NucleoEntityType;
+  entityId: string;
+  title: string;
+  summary?: string;
+  projectId?: string;
+  archivedAt: string;
+  reason?: string;
+  restoredAt?: string;
+}
+
+export interface NucleoHistoryEvent {
+  id: string;
+  entityType: NucleoEntityType;
+  entityId: string;
+  action: NucleoEntityAction;
+  title: string;
+  summary?: string;
+  projectId?: string;
+  createdAt: string;
+}
+
 export interface AntiDriftLogEntry {
   id: string;
   itemId: string;
@@ -191,8 +296,12 @@ export interface NucleoAlert {
 }
 
 export interface NucleoState {
+  schemaVersion: number;
   dashboardStats: DashboardStats;
   todayMission: TodayMission;
+  missions: NucleoMission[];
+  tasks: NucleoTask[];
+  blockers: NucleoBlocker[];
   missionJourney: MissionJourneyStep[];
   scopeTerritories: ScopeTerritory[];
   bossItems: BossItem[];
@@ -204,6 +313,8 @@ export interface NucleoState {
   focusSessions: FocusSession[];
   victories: Victory[];
   antiDriftLog: AntiDriftLogEntry[];
+  archiveItems: NucleoArchiveItem[];
+  history: NucleoHistoryEvent[];
   alerts: NucleoAlert[];
   lastUpdatedAt: string;
 }
@@ -639,12 +750,94 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function createFoundationMissions(projectList: Project[], createdAt: string): NucleoMission[] {
+  return projectList.map((project, index) => ({
+    id: `mission-${project.id}-current`,
+    projectId: project.id,
+    title: project.currentMission,
+    currentState: project.currentState,
+    destination: project.destination,
+    nextAction: project.nextAction,
+    completionCriteria: project.completionCriteria,
+    status: project.isPrimary ? "active" : "planned",
+    progress: project.progress,
+    order: index + 1,
+    createdAt,
+    updatedAt: createdAt,
+    completedAt: project.status === "concluido" ? createdAt : undefined,
+  }));
+}
+
+function createFoundationTasks(projectList: Project[], createdAt: string): NucleoTask[] {
+  return projectList.flatMap((project) => (
+    project.checkpoints.map((checkpoint, index) => ({
+      id: `task-${project.id}-${checkpoint.id}`,
+      projectId: project.id,
+      missionId: `mission-${project.id}-current`,
+      sourceType: "checkpoint" as const,
+      sourceId: checkpoint.id,
+      title: checkpoint.label,
+      status: checkpoint.done ? "done" as const : index === 0 ? "ready" as const : "backlog" as const,
+      priority: project.risk === "high" ? "high" as const : project.risk === "med" ? "medium" as const : "low" as const,
+      scopeBucket: "v01" as const,
+      order: index + 1,
+      createdAt,
+      updatedAt: createdAt,
+      completedAt: checkpoint.done ? createdAt : undefined,
+    }))
+  ));
+}
+
+function createFoundationBlockers(projectList: Project[], createdAt: string): NucleoBlocker[] {
+  return projectList.flatMap((project) => {
+    const dependencies = project.dependencies.map((dependency) => ({
+      id: `blocker-${project.id}-${dependency.id}`,
+      projectId: project.id,
+      title: dependency.what,
+      detail: `${dependency.waitingDays} dia(s) aguardando`,
+      owner: dependency.who,
+      status: "waiting" as const,
+      createdAt,
+      updatedAt: createdAt,
+    }));
+
+    const alerts = project.alerts.map((alert, index) => ({
+      id: `blocker-${project.id}-alert-${index + 1}`,
+      projectId: project.id,
+      title: alert,
+      status: "open" as const,
+      createdAt,
+      updatedAt: createdAt,
+    }));
+
+    return [...dependencies, ...alerts];
+  });
+}
+
+function createFoundationHistory(victoryList: Victory[], createdAt: string): NucleoHistoryEvent[] {
+  return victoryList.map((victory) => ({
+    id: `history-${victory.id}`,
+    entityType: "victory" as const,
+    entityId: victory.id,
+    action: "completed" as const,
+    title: victory.text,
+    summary: victory.when,
+    createdAt,
+  }));
+}
+
 export function createDefaultNucleoState(): NucleoState {
   const now = new Date().toISOString();
+  const projectList = clone(projects);
+  const initialVictories = clone(operationalCards.recentVictories);
 
   return {
+    schemaVersion: NUCLEO_SCHEMA_VERSION,
     dashboardStats: clone(dashboardStats),
     todayMission: clone(todayMission),
+    missions: createFoundationMissions(projectList, now),
+    tasks: createFoundationTasks(projectList, now),
+    blockers: createFoundationBlockers(projectList, now),
     missionJourney: clone(missionJourney),
     scopeTerritories: clone(scopeTerritories),
     bossItems: clone(bossItems),
@@ -652,10 +845,12 @@ export function createDefaultNucleoState(): NucleoState {
     mentalEnergy: clone(mentalEnergy),
     focusToday: clone(focusToday),
     operationalCards: clone(operationalCards),
-    projects: clone(projects),
+    projects: projectList,
     focusSessions: [],
-    victories: clone(operationalCards.recentVictories),
+    victories: initialVictories,
     antiDriftLog: [],
+    archiveItems: [],
+    history: createFoundationHistory(initialVictories, now),
     alerts: [],
     lastUpdatedAt: now,
   };

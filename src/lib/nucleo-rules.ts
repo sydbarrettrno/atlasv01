@@ -1,5 +1,8 @@
 import type {
   FocusSession,
+  NucleoEntityAction,
+  NucleoEntityType,
+  NucleoHistoryEvent,
   NucleoState,
   Victory,
 } from "@/lib/nucleo-data";
@@ -18,6 +21,33 @@ export function calculateJourneyProgress(state: NucleoState): number {
 
   const done = state.missionJourney.filter((step) => step.state === "done").length;
   return Math.round((done / total) * 100);
+}
+
+export function calculateTaskStats(state: NucleoState) {
+  const activeTasks = state.tasks.filter((task) => task.status !== "archived");
+  const done = activeTasks.filter((task) => task.status === "done").length;
+  const blocked = activeTasks.filter((task) => task.status === "blocked").length;
+  const ready = activeTasks.filter((task) => task.status === "ready" || task.status === "in_focus").length;
+  const total = activeTasks.length;
+
+  return {
+    total,
+    done,
+    blocked,
+    ready,
+    progress: total === 0 ? 0 : Math.round((done / total) * 100),
+  };
+}
+
+export function calculateArchiveStats(state: NucleoState) {
+  const archived = state.archiveItems.filter((item) => !item.restoredAt);
+
+  return {
+    total: archived.length,
+    projects: archived.filter((item) => item.entityType === "project").length,
+    tasks: archived.filter((item) => item.entityType === "task" || item.entityType === "checkpoint").length,
+    evidence: archived.filter((item) => item.entityType === "evidence").length,
+  };
 }
 
 export function getFocusSessionElapsedSeconds(session: FocusSession, now = Date.now()): number {
@@ -89,6 +119,33 @@ export function createVictoryFromCompletedAction(action: string): Victory {
     id: `victory-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     text: action,
     when: "Agora",
+  };
+}
+
+export function createHistoryEvent({
+  entityType,
+  entityId,
+  action,
+  title,
+  summary,
+  projectId,
+}: {
+  entityType: NucleoEntityType;
+  entityId: string;
+  action: NucleoEntityAction;
+  title: string;
+  summary?: string;
+  projectId?: string;
+}): NucleoHistoryEvent {
+  return {
+    id: `history-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    entityType,
+    entityId,
+    action,
+    title,
+    summary,
+    projectId,
+    createdAt: new Date().toISOString(),
   };
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   type FocusSession,
   type FocusSessionResult,
+  type NucleoHistoryEvent,
   type NucleoState,
   type TodayMission,
 } from "@/lib/nucleo-data";
@@ -10,6 +11,7 @@ import {
   calculateDashboardStats,
   calculateXPForFocusSession,
   calculateMissionProgress,
+  createHistoryEvent,
   createVictoryFromCompletedAction,
   detectScopeDrift,
   getFocusSessionElapsedSeconds,
@@ -77,7 +79,15 @@ function addXP(state: NucleoState, amount: number) {
   };
 }
 
+function addHistory(state: NucleoState, event: Omit<NucleoHistoryEvent, "id" | "createdAt">) {
+  return {
+    ...state,
+    history: [createHistoryEvent(event), ...state.history].slice(0, 200),
+  };
+}
+
 function recalculateState(state: NucleoState): NucleoState {
+  const now = new Date().toISOString();
   const today = todayKey();
   const completedToday = state.focusSessions.filter(
     (session) => session.status === "completed" && (session.endedAt ?? session.startedAt).slice(0, 10) === today,
@@ -103,6 +113,22 @@ function recalculateState(state: NucleoState): NucleoState {
     return project ? { ...territory, progress: project.progress } : territory;
   });
 
+  const tasks = state.tasks.map((task) => {
+    if (task.sourceType !== "checkpoint" || !task.sourceId || task.status === "archived") return task;
+
+    const project = projects.find((item) => item.id === task.projectId);
+    const checkpoint = project?.checkpoints.find((item) => item.id === task.sourceId);
+    if (!checkpoint) return task;
+
+    const status = checkpoint.done ? "done" as const : task.status === "done" ? "ready" as const : task.status;
+
+    return {
+      ...task,
+      status,
+      completedAt: checkpoint.done ? (task.completedAt ?? now) : undefined,
+    };
+  });
+
   const todayMission = {
     ...state.todayMission,
     progress: calculateMissionProgress(state),
@@ -112,6 +138,7 @@ function recalculateState(state: NucleoState): NucleoState {
     ...state,
     todayMission,
     projects,
+    tasks,
     scopeTerritories,
     focusToday: {
       ...state.focusToday,
@@ -121,7 +148,7 @@ function recalculateState(state: NucleoState): NucleoState {
       ...state.operationalCards,
       recentVictories: state.victories.slice(0, 5),
     },
-    lastUpdatedAt: new Date().toISOString(),
+    lastUpdatedAt: now,
   };
 
   return {
@@ -173,10 +200,16 @@ export function useNucleoState() {
           xpEarned: 0,
         };
 
-        return {
+        return addHistory({
           ...current,
           focusSessions: [session, ...current.focusSessions],
-        };
+        }, {
+          entityType: "focusSession",
+          entityId: session.id,
+          action: "focus_started",
+          title: "Sessão de foco iniciada",
+          projectId: session.projectId,
+        });
       });
     },
 
@@ -272,6 +305,17 @@ export function useNucleoState() {
           updated = addAlert(updated, "Sessão registrou desvio de escopo. Recoloque a ideia no Portal V02 antes de abrir nova frente.");
         }
 
+        if (completedSessionForXp) {
+          updated = addHistory(updated, {
+            entityType: "focusSession",
+            entityId: completedSessionForXp.id,
+            action: "focus_completed",
+            title: "Sessão de foco registrada",
+            summary: payload.evidence.trim() || payload.note.trim() || payload.result,
+            projectId: completedSessionForXp.projectId,
+          });
+        }
+
         return updated;
       });
     },
@@ -315,6 +359,26 @@ export function useNucleoState() {
           updated = addXP(addVictory(updated, "Missão principal concluída"), 15);
         }
 
+        if (victoryText) {
+          updated = addHistory(updated, {
+            entityType: "checkpoint",
+            entityId: itemId,
+            action: "completed",
+            title: victoryText,
+            projectId: current.todayMission.projectId,
+          });
+        }
+
+        if (allDone && !current.todayMission.completedAt) {
+          updated = addHistory(updated, {
+            entityType: "mission",
+            entityId: current.todayMission.id,
+            action: "completed",
+            title: "Missão principal concluída",
+            projectId: current.todayMission.projectId,
+          });
+        }
+
         return updated;
       });
     },
@@ -348,6 +412,15 @@ export function useNucleoState() {
 
         let updated = addXP({ ...current, missionJourney }, earnedXp);
         if (victoryText) updated = addVictory(updated, victoryText);
+        if (victoryText) {
+          updated = addHistory(updated, {
+            entityType: "mission",
+            entityId: stepId,
+            action: "completed",
+            title: victoryText,
+            projectId: current.todayMission.projectId,
+          });
+        }
 
         return updated;
       });
@@ -383,6 +456,12 @@ export function useNucleoState() {
 
         if (!alreadyAvoided) {
           updated = addXP(addVictory(updated, `Desvio evitado: ${item.text}`), 10);
+          updated = addHistory(updated, {
+            entityType: "antiDrift",
+            entityId: itemId,
+            action: "drift_avoided",
+            title: `Desvio evitado: ${item.text}`,
+          });
         }
 
         return updated;
@@ -416,12 +495,26 @@ export function useNucleoState() {
           ],
         };
 
-        return addAlert(updated, `Desvio registrado: ${item.text}`);
+        return addHistory(addAlert(updated, `Desvio registrado: ${item.text}`), {
+          entityType: "antiDrift",
+          entityId: itemId,
+          action: "drift_violated",
+          title: `Desvio registrado: ${item.text}`,
+        });
       });
     },
 
     addVictory(text: string) {
-      updateState((current) => addXP(addVictory(current, text.trim() || "Vitória registrada"), 10));
+      updateState((current) => {
+        const title = text.trim() || "Vitória registrada";
+
+        return addHistory(addXP(addVictory(current, title), 10), {
+          entityType: "victory",
+          entityId: createId("victory"),
+          action: "completed",
+          title,
+        });
+      });
     },
 
     updateTodayMission(payload: TodayMissionPayload) {
@@ -464,6 +557,15 @@ export function useNucleoState() {
 
         let updated = addXP({ ...current, projects }, earnedXp);
         if (victoryText) updated = addVictory(updated, victoryText);
+        if (victoryText) {
+          updated = addHistory(updated, {
+            entityType: "checkpoint",
+            entityId: checkpointId,
+            action: "completed",
+            title: victoryText,
+            projectId,
+          });
+        }
 
         return updated;
       });
@@ -473,20 +575,30 @@ export function useNucleoState() {
       const text = label.trim();
       if (!text) return;
 
-      updateState((current) => ({
-        ...current,
-        projects: current.projects.map((project) => (
-          project.id === projectId
-            ? {
-              ...project,
-              evidence: [
-                { id: createId("evidence"), label: text, when: "Agora" },
-                ...project.evidence,
-              ],
-            }
-            : project
-        )),
-      }));
+      updateState((current) => {
+        const evidenceId = createId("evidence");
+
+        return addHistory({
+          ...current,
+          projects: current.projects.map((project) => (
+            project.id === projectId
+              ? {
+                ...project,
+                evidence: [
+                  { id: evidenceId, label: text, when: "Agora" },
+                  ...project.evidence,
+                ],
+              }
+              : project
+          )),
+        }, {
+          entityType: "evidence",
+          entityId: evidenceId,
+          action: "evidence_added",
+          title: text,
+          projectId,
+        });
+      });
     },
 
     resetDemoData() {
