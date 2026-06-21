@@ -57,6 +57,12 @@ function FocusMode() {
   const mm = String(Math.floor(elapsedSeconds / 60)).padStart(2, "0");
   const ss = String(elapsedSeconds % 60).padStart(2, "0");
   const primaryProject = state.projects.find((project) => project.id === state.todayMission.projectId);
+  const activeTask = activeFocusSession?.taskId
+    ? state.tasks.find((task) => task.id === activeFocusSession.taskId)
+    : undefined;
+  const focusProject = activeTask
+    ? state.projects.find((project) => project.id === activeTask.projectId)
+    : primaryProject;
 
   function startFocus() {
     setConfirmation("");
@@ -105,10 +111,19 @@ function FocusMode() {
             <div className="relative">
               <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">
                 <Crown className="h-3.5 w-3.5 text-[color:var(--amber)]" />
-                {primaryProject?.name ?? state.todayMission.projectTag}
+                {focusProject?.name ?? state.todayMission.projectTag}
               </div>
-              <h2 className="mt-2 font-display text-3xl font-bold leading-tight md:text-5xl">{state.todayMission.mission}</h2>
-              <p className="mt-3 max-w-2xl text-sm text-muted-foreground">{state.todayMission.nextAction}</p>
+              <h2 className="mt-2 font-display text-3xl font-bold leading-tight md:text-5xl">
+                {activeTask?.title ?? state.todayMission.mission}
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
+                {activeTask?.description || state.todayMission.nextAction}
+              </p>
+              {activeTask && (
+                <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-[color:var(--cyan)]/30 bg-[color:color-mix(in_oklab,var(--cyan)_10%,transparent)] px-3 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[color:var(--cyan)]">
+                  Tarefa selecionada no fluxo
+                </div>
+              )}
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 <Stat label="Status" value={activeFocusSession?.status ?? "pronto"} />

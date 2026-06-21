@@ -165,6 +165,7 @@ export interface FocusSession {
   id: string;
   missionId: string;
   projectId: string;
+  taskId?: string;
   startedAt: string;
   lastResumedAt?: string;
   endedAt?: string;

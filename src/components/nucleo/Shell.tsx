@@ -11,6 +11,7 @@ import {
   Flame,
   Zap,
   Layers,
+  ListChecks,
 } from "lucide-react";
 import { useNucleoState } from "@/hooks/useNucleoState";
 import { owner } from "@/lib/nucleo-data";
@@ -20,6 +21,7 @@ import type { ReactNode } from "react";
 const navItems = [
   { to: "/", label: "Mapa Estratégico", icon: Map, exact: true },
   { to: "/jornada", label: "Jornada RPG", icon: Sword },
+  { to: "/fluxo", label: "Fluxo", icon: ListChecks },
   { to: "/foco", label: "Modo Foco", icon: Target },
   { to: "/semana", label: "Revisão Semanal", icon: CalendarRange },
   { to: "/v02", label: "Portal V02", icon: Layers },

@@ -13,6 +13,8 @@ import {
   type ProjectStatus,
   type RiskLevel,
   type ScopeItem,
+  type TaskPriority,
+  type TaskStatus,
   type TodayMission,
 } from "@/lib/nucleo-data";
 import { loadNucleoState, resetNucleoState, saveNucleoState } from "@/lib/nucleo-storage";
@@ -58,6 +60,20 @@ type BlockerPayload = {
   detail?: string;
   owner?: string;
 };
+
+type TaskPayload = {
+  projectId: string;
+  title: string;
+  description?: string;
+  priority: TaskPriority;
+  scopeBucket?: ScopeItem["bucket"];
+  status?: TaskStatus;
+};
+
+type TaskUpdatePayload = Partial<Omit<TaskPayload, "projectId"> & {
+  projectId: string;
+  status: TaskStatus;
+}>;
 
 type Listener = (state: NucleoState) => void;
 
@@ -759,6 +775,20 @@ export function useNucleoState() {
           };
         }
 
+        if (archiveItem.entityType === "task" && archiveItem.projectId && archiveItem.snapshot) {
+          const task = archiveItem.snapshot as NucleoTask;
+          restored = {
+            ...restored,
+            tasks: restored.tasks.some((item) => item.id === task.id)
+              ? restored.tasks.map((item) => (
+                item.id === task.id
+                  ? { ...task, status: task.status === "archived" ? "ready" : task.status, archivedAt: undefined, updatedAt: new Date().toISOString() }
+                  : item
+              ))
+              : [{ ...task, archivedAt: undefined, updatedAt: new Date().toISOString() }, ...restored.tasks],
+          };
+        }
+
         if (archiveItem.entityType === "blocker" && archiveItem.projectId && archiveItem.snapshot) {
           const blocker = archiveItem.snapshot as NucleoBlocker;
           restored = {
@@ -801,15 +831,176 @@ export function useNucleoState() {
       });
     },
 
-    startFocusSession() {
+    createTask(payload: TaskPayload) {
+      const title = payload.title.trim();
+      if (!title) return "";
+
+      const now = new Date().toISOString();
+      const project = cachedState.projects.find((item) => item.id === payload.projectId);
+      if (!project) return "";
+
+      const mission = cachedState.missions.find((item) => item.projectId === payload.projectId);
+      const task: NucleoTask = {
+        id: createId("task"),
+        projectId: payload.projectId,
+        missionId: mission?.id ?? `mission-${payload.projectId}-current`,
+        sourceType: "manual",
+        title,
+        description: payload.description?.trim() || undefined,
+        status: payload.status ?? "ready",
+        priority: payload.priority,
+        scopeBucket: payload.scopeBucket,
+        order: cachedState.tasks.filter((item) => item.projectId === payload.projectId && item.status !== "archived").length + 1,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      updateState((current) => addHistory({
+        ...current,
+        tasks: [...current.tasks, task],
+      }, {
+        entityType: "task",
+        entityId: task.id,
+        action: "created",
+        title: `Tarefa criada: ${task.title}`,
+        projectId: task.projectId,
+      }));
+
+      return task.id;
+    },
+
+    updateTask(taskId: string, payload: TaskUpdatePayload) {
+      updateState((current) => {
+        const task = current.tasks.find((item) => item.id === taskId);
+        if (!task) return current;
+
+        const nextTask: NucleoTask = {
+          ...task,
+          ...payload,
+          title: payload.title?.trim() || task.title,
+          description: payload.description?.trim() || undefined,
+          updatedAt: new Date().toISOString(),
+        };
+
+        return addHistory({
+          ...current,
+          tasks: current.tasks.map((item) => (item.id === taskId ? nextTask : item)),
+        }, {
+          entityType: "task",
+          entityId: taskId,
+          action: "updated",
+          title: `Tarefa atualizada: ${nextTask.title}`,
+          projectId: nextTask.projectId,
+        });
+      });
+    },
+
+    setTaskStatus(taskId: string, status: TaskStatus) {
+      updateState((current) => {
+        const task = current.tasks.find((item) => item.id === taskId);
+        if (!task || task.status === "archived") return current;
+
+        const now = new Date().toISOString();
+        const completing = status === "done" && task.status !== "done";
+        const reopening = task.status === "done" && status !== "done";
+        const projects = task.sourceType === "checkpoint" && task.sourceId
+          ? current.projects.map((project) => (
+            project.id === task.projectId
+              ? {
+                ...project,
+                checkpoints: project.checkpoints.map((checkpoint) => (
+                  checkpoint.id === task.sourceId
+                    ? { ...checkpoint, done: status === "done", xpAwarded: checkpoint.xpAwarded || completing }
+                    : checkpoint
+                )),
+              }
+              : project
+          ))
+          : current.projects;
+
+        let updated: NucleoState = {
+          ...current,
+          projects,
+          tasks: current.tasks.map((item) => (
+            item.id === taskId
+              ? {
+                ...item,
+                status,
+                completedAt: status === "done" ? (item.completedAt ?? now) : undefined,
+                updatedAt: now,
+              }
+              : item
+          )),
+        };
+
+        if (completing) {
+          updated = addXP(addVictory(updated, `Tarefa concluída: ${task.title}`), 10);
+        }
+
+        return addHistory(updated, {
+          entityType: "task",
+          entityId: taskId,
+          action: completing ? "completed" : reopening ? "reopened" : "updated",
+          title: `${completing ? "Tarefa concluída" : reopening ? "Tarefa reaberta" : "Status atualizado"}: ${task.title}`,
+          projectId: task.projectId,
+        });
+      });
+    },
+
+    archiveTask(taskId: string) {
+      updateState((current) => {
+        const task = current.tasks.find((item) => item.id === taskId);
+        if (!task) return current;
+
+        return addArchiveItem({
+          ...current,
+          tasks: current.tasks.map((item) => (
+            item.id === taskId
+              ? { ...item, status: "archived" as const, archivedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+              : item
+          )),
+        }, {
+          entityType: "task",
+          entityId: taskId,
+          title: task.title,
+          projectId: task.projectId,
+          reason: "Tarefa arquivada",
+          snapshot: task,
+        });
+      });
+    },
+
+    reorderTasks(taskIds: string[]) {
+      updateState((current) => {
+        const orderById = new Map(taskIds.map((id, index) => [id, index + 1]));
+
+        return addHistory({
+          ...current,
+          tasks: current.tasks.map((task) => (
+            orderById.has(task.id)
+              ? { ...task, order: orderById.get(task.id) ?? task.order, updatedAt: new Date().toISOString() }
+              : task
+          )),
+        }, {
+          entityType: "task",
+          entityId: taskIds[0] ?? "task-order",
+          action: "moved",
+          title: "Fila de tarefas reordenada",
+        });
+      });
+    },
+
+    startFocusSession(taskId?: string) {
       updateState((current) => {
         if (getActiveSession(current)) return current;
 
         const now = new Date().toISOString();
+        const task = taskId ? current.tasks.find((item) => item.id === taskId && item.status !== "archived") : undefined;
         const session: FocusSession = {
           id: createId("focus"),
-          missionId: current.todayMission.id,
-          projectId: current.todayMission.projectId,
+          missionId: task?.missionId ?? current.todayMission.id,
+          projectId: task?.projectId ?? current.todayMission.projectId,
+          taskId: task?.id,
           startedAt: now,
           lastResumedAt: now,
           durationSeconds: 0,
@@ -822,11 +1013,18 @@ export function useNucleoState() {
         return addHistory({
           ...current,
           focusSessions: [session, ...current.focusSessions],
+          tasks: task
+            ? current.tasks.map((item) => (
+              item.id === task.id && item.status !== "done"
+                ? { ...item, status: "in_focus" as const, updatedAt: now }
+                : item
+            ))
+            : current.tasks,
         }, {
           entityType: "focusSession",
           entityId: session.id,
           action: "focus_started",
-          title: "Sessão de foco iniciada",
+          title: task ? `Sessão de foco iniciada: ${task.title}` : "Sessão de foco iniciada",
           projectId: session.projectId,
         });
       });
@@ -864,19 +1062,31 @@ export function useNucleoState() {
     },
 
     cancelFocusSession() {
-      updateState((current) => ({
-        ...current,
-        focusSessions: current.focusSessions.map((session) => {
-          if (session.status !== "running" && session.status !== "paused") return session;
+      updateState((current) => {
+        const activeSession = getActiveSession(current);
+        const now = new Date().toISOString();
 
-          return {
-            ...session,
-            durationSeconds: getFocusSessionElapsedSeconds(session),
-            endedAt: new Date().toISOString(),
-            status: "cancelled",
-          };
-        }),
-      }));
+        return {
+          ...current,
+          focusSessions: current.focusSessions.map((session) => {
+            if (session.status !== "running" && session.status !== "paused") return session;
+
+            return {
+              ...session,
+              durationSeconds: getFocusSessionElapsedSeconds(session),
+              endedAt: now,
+              status: "cancelled",
+            };
+          }),
+          tasks: activeSession?.taskId
+            ? current.tasks.map((task) => (
+              task.id === activeSession.taskId && task.status === "in_focus"
+                ? { ...task, status: "ready" as const, updatedAt: now }
+                : task
+            ))
+            : current.tasks,
+        };
+      });
     },
 
     finishFocusSession(payload: FinishFocusPayload) {
@@ -922,6 +1132,51 @@ export function useNucleoState() {
 
         if (payload.result === "desviei" || detectScopeDrift(`${payload.note} ${payload.evidence}`)) {
           updated = addAlert(updated, "Sessão registrou desvio de escopo. Recoloque a ideia no Portal V02 antes de abrir nova frente.");
+        }
+
+        if (completedSessionForXp?.taskId) {
+          const task = current.tasks.find((item) => item.id === completedSessionForXp?.taskId);
+          if (task) {
+            const now = new Date().toISOString();
+            const nextStatus: TaskStatus = payload.result === "concluido"
+              ? "done"
+              : payload.result === "travei"
+                ? "blocked"
+                : "ready";
+            const completing = nextStatus === "done" && task.status !== "done";
+
+            updated = {
+              ...updated,
+              tasks: updated.tasks.map((item) => (
+                item.id === task.id
+                  ? {
+                    ...item,
+                    status: nextStatus,
+                    completedAt: nextStatus === "done" ? (item.completedAt ?? now) : undefined,
+                    updatedAt: now,
+                  }
+                  : item
+              )),
+              projects: task.sourceType === "checkpoint" && task.sourceId
+                ? updated.projects.map((project) => (
+                  project.id === task.projectId
+                    ? {
+                      ...project,
+                      checkpoints: project.checkpoints.map((checkpoint) => (
+                        checkpoint.id === task.sourceId
+                          ? { ...checkpoint, done: nextStatus === "done", xpAwarded: checkpoint.xpAwarded || completing }
+                          : checkpoint
+                      )),
+                    }
+                    : project
+                ))
+                : updated.projects,
+            };
+
+            if (completing) {
+              updated = addXP(addVictory(updated, `Tarefa concluída: ${task.title}`), 10);
+            }
+          }
         }
 
         if (completedSessionForXp) {

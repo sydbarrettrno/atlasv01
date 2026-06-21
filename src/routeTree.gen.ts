@@ -13,6 +13,7 @@ import { Route as V02RouteImport } from './routes/v02'
 import { Route as SemanaRouteImport } from './routes/semana'
 import { Route as JornadaRouteImport } from './routes/jornada'
 import { Route as FocoRouteImport } from './routes/foco'
+import { Route as FluxoRouteImport } from './routes/fluxo'
 import { Route as ArquivoRouteImport } from './routes/arquivo'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjetoIdRouteImport } from './routes/projeto.$id'
@@ -37,6 +38,11 @@ const FocoRoute = FocoRouteImport.update({
   path: '/foco',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FluxoRoute = FluxoRouteImport.update({
+  id: '/fluxo',
+  path: '/fluxo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ArquivoRoute = ArquivoRouteImport.update({
   id: '/arquivo',
   path: '/arquivo',
@@ -56,6 +62,7 @@ const ProjetoIdRoute = ProjetoIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/arquivo': typeof ArquivoRoute
+  '/fluxo': typeof FluxoRoute
   '/foco': typeof FocoRoute
   '/jornada': typeof JornadaRoute
   '/semana': typeof SemanaRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/arquivo': typeof ArquivoRoute
+  '/fluxo': typeof FluxoRoute
   '/foco': typeof FocoRoute
   '/jornada': typeof JornadaRoute
   '/semana': typeof SemanaRoute
@@ -75,6 +83,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/arquivo': typeof ArquivoRoute
+  '/fluxo': typeof FluxoRoute
   '/foco': typeof FocoRoute
   '/jornada': typeof JornadaRoute
   '/semana': typeof SemanaRoute
@@ -86,6 +95,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/arquivo'
+    | '/fluxo'
     | '/foco'
     | '/jornada'
     | '/semana'
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/arquivo'
+    | '/fluxo'
     | '/foco'
     | '/jornada'
     | '/semana'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/arquivo'
+    | '/fluxo'
     | '/foco'
     | '/jornada'
     | '/semana'
@@ -114,6 +126,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ArquivoRoute: typeof ArquivoRoute
+  FluxoRoute: typeof FluxoRoute
   FocoRoute: typeof FocoRoute
   JornadaRoute: typeof JornadaRoute
   SemanaRoute: typeof SemanaRoute
@@ -151,6 +164,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FocoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/fluxo': {
+      id: '/fluxo'
+      path: '/fluxo'
+      fullPath: '/fluxo'
+      preLoaderRoute: typeof FluxoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/arquivo': {
       id: '/arquivo'
       path: '/arquivo'
@@ -178,6 +198,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ArquivoRoute: ArquivoRoute,
+  FluxoRoute: FluxoRoute,
   FocoRoute: FocoRoute,
   JornadaRoute: JornadaRoute,
   SemanaRoute: SemanaRoute,
