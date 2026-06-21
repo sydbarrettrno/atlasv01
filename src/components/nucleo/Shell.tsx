@@ -34,9 +34,9 @@ export function Shell({ children }: { children: ReactNode }) {
       <div className="pointer-events-none fixed inset-0 bg-grid opacity-[0.07]" aria-hidden />
       <div className="pointer-events-none fixed inset-0" aria-hidden style={{ background: "var(--gradient-glow)" }} />
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[1680px] gap-6 px-4 py-6 lg:px-8">
+      <div className="relative mx-auto flex min-h-screen w-full max-w-[1720px] gap-5 px-4 py-3 lg:px-6 lg:py-4">
         {/* Sidebar */}
-        <aside className="sticky top-6 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col rounded-2xl glass shadow-[var(--shadow-elevated)] lg:flex">
+        <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-60 shrink-0 flex-col rounded-2xl glass shadow-[var(--shadow-elevated)] lg:flex">
           <div className="flex items-center gap-3 border-b border-border px-5 py-5">
             <div className="relative grid h-10 w-10 place-items-center rounded-xl" style={{ background: "var(--gradient-primary)" }}>
               <Sparkles className="h-5 w-5 text-primary-foreground" />
