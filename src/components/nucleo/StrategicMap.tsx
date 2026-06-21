@@ -287,12 +287,12 @@ function MissionJourney() {
       </div>
 
       <div className="relative grid gap-3 md:grid-cols-6">
-        <div className="absolute left-6 right-6 top-7 hidden h-px bg-[linear-gradient(90deg,var(--emerald),var(--cyan),var(--border),var(--border))] md:block" aria-hidden />
         {missionJourney.map((step, index) => (
           <JourneyStep
             key={step.id}
             step={step}
             index={index + 1}
+            hasConnector={index < missionJourney.length - 1}
             canInteract={step.state === "active" || (step.state === "blocked" && missionJourney[index - 1]?.state === "done")}
             onToggle={() => actions.toggleJourneyStep(step.id)}
           />
@@ -305,11 +305,13 @@ function MissionJourney() {
 function JourneyStep({
   step,
   index,
+  hasConnector,
   canInteract,
   onToggle,
 }: {
   step: MissionJourneyStep;
   index: number;
+  hasConnector: boolean;
   canInteract: boolean;
   onToggle: () => void;
 }) {
@@ -334,13 +336,30 @@ function JourneyStep({
     },
   }[step.state];
 
+  const connectorColor = step.state === "done"
+    ? "var(--emerald)"
+    : step.state === "active"
+      ? "var(--cyan)"
+      : "var(--border)";
+
   return (
-    <button
-      type="button"
-      disabled={!canInteract}
-      onClick={onToggle}
-      className={`relative rounded-2xl border border-border bg-surface/70 p-3 text-left transition ${canInteract ? "hover:-translate-y-0.5 hover:border-[color:var(--cyan)]/40" : "cursor-default opacity-80"} ${meta.className}`}
-    >
+    <div className="relative min-w-0">
+      {hasConnector && (
+        <span
+          className="pointer-events-none absolute left-full top-7 z-0 hidden h-px w-3 md:block"
+          style={{
+            background: `linear-gradient(90deg, ${connectorColor}, var(--border))`,
+            boxShadow: step.state !== "blocked" ? `0 0 10px ${connectorColor}` : undefined,
+          }}
+          aria-hidden
+        />
+      )}
+      <button
+        type="button"
+        disabled={!canInteract}
+        onClick={onToggle}
+        className={`relative z-10 h-full w-full rounded-2xl border border-border bg-surface/90 p-3 text-left transition ${canInteract ? "hover:-translate-y-0.5 hover:border-[color:var(--cyan)]/40" : "cursor-default opacity-80"} ${meta.className}`}
+      >
       <div className="mb-3 flex items-center justify-between">
         <span className="font-mono text-[10px] text-muted-foreground">#{String(index).padStart(2, "0")}</span>
         <span className="grid h-8 w-8 place-items-center rounded-full border border-current/35" style={{ color: meta.color, background: `color-mix(in oklab, ${meta.color} 12%, transparent)` }}>
@@ -351,7 +370,8 @@ function JourneyStep({
       <div className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: meta.color }}>
         {meta.label}
       </div>
-    </button>
+      </button>
+    </div>
   );
 }
 
