@@ -96,25 +96,25 @@ function ProjectDetail() {
   const [blockerOwner, setBlockerOwner] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
 
-  const p = state.projects.find((project) => project.id === projectId) ?? projects.find((project) => project.id === projectId);
+  const project = state.projects.find((item) => item.id === projectId) ?? projects.find((item) => item.id === projectId);
   const blockers = state.blockers.filter((blocker) => blocker.projectId === projectId && blocker.status !== "archived");
 
   useEffect(() => {
-    if (!p) return;
+    if (!project) return;
 
     setProjectDraft({
-      name: p.name,
-      currentState: p.currentState,
-      destination: p.destination,
-      currentMission: p.currentMission,
-      nextAction: p.nextAction,
-      completionCriteria: p.completionCriteria,
-      status: p.status,
-      risk: p.risk,
+      name: project.name,
+      currentState: project.currentState,
+      destination: project.destination,
+      currentMission: project.currentMission,
+      nextAction: project.nextAction,
+      completionCriteria: project.completionCriteria,
+      status: project.status,
+      risk: project.risk,
     });
-  }, [p?.id, p?.name, p?.currentState, p?.destination, p?.currentMission, p?.nextAction, p?.completionCriteria, p?.status, p?.risk]);
+  }, [project]);
 
-  if (!p) {
+  if (!project) {
     return (
       <Shell>
         <div className="rounded-2xl border border-border bg-surface/60 p-10 text-center">
@@ -127,6 +127,7 @@ function ProjectDetail() {
     );
   }
 
+  const p = project;
   const c = `var(--${p.color})`;
   const v01 = p.scope.filter((scope) => scope.bucket === "v01");
   const v02 = p.scope.filter((scope) => scope.bucket === "v02");

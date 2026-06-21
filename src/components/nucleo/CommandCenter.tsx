@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import {
   Archive,
   Bell,
-  CheckCircle2,
   FolderOpen,
   ListChecks,
   RotateCcw,

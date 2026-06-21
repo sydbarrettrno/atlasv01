@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Sword, Skull, Target, Zap, Trophy, AlertTriangle, ShieldCheck, Flame,
-  ArrowRight, Hourglass, Crown, Layers, CheckCircle2,
+  ArrowRight, Crown, Layers, CheckCircle2,
 } from "lucide-react";
 import {
   owner,
