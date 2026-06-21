@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle, Hourglass, CheckCircle2, Crown, ArrowRight,
-  ShieldAlert, Compass, MapPin, Users, FileText, Building2, Settings2,
+  ShieldAlert, Compass, MapPin,
   Radar, Flag, Target, Ban, Layers,
 } from "lucide-react";
 import {
