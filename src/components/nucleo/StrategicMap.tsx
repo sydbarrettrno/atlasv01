@@ -14,6 +14,7 @@ import {
   Layers,
   Lock,
   MapPin,
+  Plus,
   Radar,
   Settings,
   ShieldAlert,
