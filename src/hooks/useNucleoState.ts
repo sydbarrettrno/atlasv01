@@ -17,7 +17,12 @@ import {
   type TaskStatus,
   type TodayMission,
 } from "@/lib/nucleo-data";
-import { loadNucleoState, resetNucleoState, saveNucleoState } from "@/lib/nucleo-storage";
+import {
+  createHydratedDefaultState,
+  loadNucleoState,
+  resetNucleoState,
+  saveNucleoState,
+} from "@/lib/nucleo-storage";
 import {
   calculateDashboardStats,
   calculateXPForFocusSession,
@@ -77,7 +82,8 @@ type TaskUpdatePayload = Partial<Omit<TaskPayload, "projectId"> & {
 
 type Listener = (state: NucleoState) => void;
 
-let cachedState: NucleoState = loadNucleoState();
+let cachedState: NucleoState = createHydratedDefaultState();
+let hasLoadedPersistedState = false;
 const listeners = new Set<Listener>();
 
 function createId(prefix: string) {
@@ -257,15 +263,24 @@ function updateState(updater: (state: NucleoState) => NucleoState) {
   publish(updater(cachedState));
 }
 
+function hydrateCachedStateFromStorage() {
+  if (hasLoadedPersistedState) return cachedState;
+
+  cachedState = loadNucleoState();
+  hasLoadedPersistedState = true;
+  return cachedState;
+}
+
 export function useNucleoState() {
   const [state, setState] = useState<NucleoState>(cachedState);
 
   useEffect(() => {
-    const loadedState = loadNucleoState();
-    cachedState = loadedState;
-    setState(loadedState);
-
     listeners.add(setState);
+
+    const loadedState = hydrateCachedStateFromStorage();
+    setState(loadedState);
+    listeners.forEach((listener) => listener(loadedState));
+
     return () => {
       listeners.delete(setState);
     };
@@ -1478,6 +1493,7 @@ export function useNucleoState() {
     resetDemoData() {
       const cleanState = resetNucleoState();
       cachedState = cleanState;
+      hasLoadedPersistedState = true;
       listeners.forEach((listener) => listener(cleanState));
     },
   }), []);

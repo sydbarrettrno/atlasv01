@@ -15,7 +15,7 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function createHydratedDefaultState(): NucleoState {
+export function createHydratedDefaultState(): NucleoState {
   const state = createDefaultNucleoState();
 
   state.todayMission.progress = calculateMissionProgress(state);
